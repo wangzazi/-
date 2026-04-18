@@ -48,11 +48,8 @@
 
             conn.on('open', () => {
                 setupConnection();
-
-                setStatus('게임을 찾았습니다.'); // 선택
-        initGame(); // 👉 게임 확실히 시작
-
-        sendFullState();
+                initGame(); // 👉 게임 확실히 시작
+                sendFullState();
                 // 친구가 들어오면 게임 페이지로 이동 (나는 호스트)
                 window.location.href = `game.html?room=${peer.id}&role=host`;
             });
