@@ -1003,47 +1003,34 @@ function finishTurn() {
   checkState[opp] = oppInCheck;
   checkState[turn] = false;
 
-  // 연속 체크 카운터 갱신
+  // 체크 카운터 갱신 — 5회 초과 여부를 먼저 체크해서 연속 카운터가 잘못 오르는 버그 방지
   if(oppInCheck) {
-    // turn이 opp에게 체크를 걸었음
+    // 총 횟수 초과 시: 카운터 올리지 말고 바로 복원
+    if(totalCheckBy[turn] >= MAX_TOTAL_CHECK) {
+      board = prevBoard;
+      hand = {w:{...prevHand.w}, b:{...prevHand.b}};
+      turn = prevTurn;
+      lastMove = prevLastMove ? {...prevLastMove} : null;
+      setStatus((prevTurn==='w'?'백':'흑')+' 진영: 체크 5회 소진! 이전 턴으로 돌아갔습니다.');
+      selectedHandPiece=null; selectedCell=null; highlights=[];
+      const hl = document.getElementById('history-list');
+      if(hl.lastChild) hl.removeChild(hl.lastChild);
+      renderAll();
+      return;
+    }
     consecCheckBy[turn]++;
     totalCheckBy[turn]++;
-    consecCheckBy[opp] = 0; // 상대방 연속 기록은 리셋
+    consecCheckBy[opp] = 0;
   } else {
     consecCheckBy[turn] = 0;
   }
 
   // 3회 연속 체크 패배 룰
   if(consecCheckBy[turn] >= MAX_CONSEC_CHECK) {
-    endGame('⚠️', (turn==='w'?'백':'흑')+' 자멸!', `반칙패 — 3회 연속 체크`);
+    endGame('⚠️', (turn==='w'?'백':'흑')+' 자멸!', '반칙패 — 3회 연속 체크');
     return;
   }
 
-  // 한 판 체크 5회 초과 시 이전 상태로 복원
-  if(totalCheckBy[turn] > MAX_TOTAL_CHECK) {
-    // 이전 상태로 복원
-    board = prevBoard;
-    hand = {w:{...prevHand.w}, b:{...prevHand.b}};
-    turn = prevTurn;
-    lastMove = prevLastMove ? {...prevLastMove} : null;
-    
-    // 체크 횟수 감소 (방금 걸은 체크를 취소)
-    consecCheckBy[prevTurn]--;
-    totalCheckBy[prevTurn]--;
-    
-    // 메시지 출력
-    setStatus((prevTurn==='w'?'백':'흑')+' 진영: 체크 5회 초과! 이전 턴으로 돌아갔습니다.');
-    selectedHandPiece=null;
-    selectedCell=null;
-    highlights=[];
-    
-    // 이동 기록에서 마지막 항목 제거
-    const historyList = document.getElementById('history-list');
-    if(historyList.lastChild) historyList.removeChild(historyList.lastChild);
-    
-    renderAll();
-    return;
-  }
 
   // 체크메이트 / 스테일메이트
   const oppHasAction = hasAnyLegalAction(board,opp,hand);
@@ -1434,51 +1421,66 @@ if (IS_ONLINE) {
   const badge = document.getElementById('online-badge');
   badge.classList.add('show');
   document.getElementById('ob-color').textContent = myColor === 'w' ? '(백)' : '(흑)';
+  setStatus('상대방 연결 중...');
 
-  // PeerJS 초기화
-  netPeer = new Peer();
+  // 새 PeerJS 인스턴스 생성
+  // 호스트: 자기 고유 ID를 사용 (index에서 이미 가진 ID와 다를 수 있으므로 anonymous)
+  // 게스트: NET_ROOM(호스트 PeerID)에 연결
+  netPeer = new Peer(undefined, { debug: 0 });
 
-  netPeer.on('open', peerId => {
+  netPeer.on('open', myId => {
     if (NET_ROLE === 'host') {
-      // 호스트: 게스트가 연결해오길 기다림 (이미 index.html에서 연결 확인됨)
-      // → peer.on('connection') 이 자동으로 트리거
+      // 호스트: 게스트가 연결해오길 기다림
+      // index.html의 Peer는 이 페이지 로드로 파괴됐으므로 여기서 새로 받음
       setStatus('게스트 연결 대기 중...');
     } else {
-      // 게스트: 호스트에게 연결
+      // 게스트: 호스트 PeerID(NET_ROOM)에 연결
       setStatus('호스트에 연결 중...');
       const conn = netPeer.connect(NET_ROOM, { reliable: true });
-      setupConn(conn);
+      setupConn(conn, 'guest');
     }
   });
 
-  // 호스트 측 연결 수신
+  // 호스트 측: 게스트 연결 수락
   netPeer.on('connection', conn => {
-    if (NET_ROLE === 'host') setupConn(conn);
+    if (NET_ROLE === 'host' && !netConn) {
+      setupConn(conn, 'host');
+    }
   });
 
   netPeer.on('error', err => {
-    setStatus('❌ 연결 오류: ' + err.message);
+    if (err.type === 'peer-unavailable') {
+      setStatus('❌ 호스트를 찾을 수 없습니다. 로비로 돌아가 다시 시도하세요.');
+    } else {
+      setStatus('❌ 연결 오류: ' + (err.message || err.type));
+    }
   });
 }
 
 /* ============================================================
    DataConnection 공통 설정
 ============================================================ */
-function setupConn(conn) {
+function setupConn(conn, role) {
   netConn = conn;
   conn.on('open', () => {
-    netReady = true;
-    document.getElementById('ob-dot').style.background = 'var(--green)';
-    document.getElementById('ob-label').textContent = '연결됨';
-    setStatus(turn === myColor ? '내 턴 — 킹 배치' : '상대방 턴 대기 중...');
-    // 호스트가 초기 상태 전송
-    if (NET_ROLE === 'host') {
-      netSend({ type: 'STATE', payload: serializeGameState() });
-    }
+    // HELLO 핸드셰이크
+    conn.send({ type: 'HELLO', role: role });
   });
 
   conn.on('data', data => {
     if (!data || !data.type) return;
+    if (data.type === 'HELLO') {
+      // 상대방 HELLO 수신 → 연결 확립
+      netReady = true;
+      document.getElementById('ob-dot').style.background = 'var(--green)';
+      document.getElementById('ob-label').textContent = '연결됨';
+      setStatus(turn === myColor ? '내 턴 — 킹 배치' : '상대방 턴 대기 중...');
+      // 호스트가 초기 상태 전송
+      if (NET_ROLE === 'host') {
+        netSend({ type: 'STATE', payload: serializeGameState() });
+      }
+      return;
+    }
     switch (data.type) {
       case 'STATE':
         applyRemoteGameState(data.payload);
@@ -1486,6 +1488,9 @@ function setupConn(conn) {
       case 'RESTART':
         document.getElementById('end-overlay').classList.remove('show');
         initGame();
+        if (NET_ROLE === 'host') {
+          netSend({ type: 'STATE', payload: serializeGameState() });
+        }
         break;
     }
   });
@@ -1498,7 +1503,7 @@ function setupConn(conn) {
   });
 
   conn.on('error', err => {
-    setStatus('❌ 연결 오류: ' + err.message);
+    setStatus('❌ 연결 오류: ' + (err.message || err.type));
   });
 }
 
