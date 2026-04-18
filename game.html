@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오목게이</title>
+<style>
+/* ── 기본 리셋 & 변수 ── */
+:root {
+  --cell: 68px;
+  --light: #EDD9A3;
+  --dark:  #A97C50;
+  --bg:    #2C2C2E;
+  --panel: #3A3A3C;
+  --panel2:#48484A;
+  --border:#555558;
+  --gold:  #F5C842;
+  --gold2: #FDE68A;
+  --white-side: #4A4A6A;
+  --black-side: #2A2A4A;
+  --text:  #F2F2F7;
+  --muted: #AEAEB2;
+  --red:   #FF453A;
+  --green: #30D158;
+  --blue:  #0A84FF;
+  --highlight: rgba(48,209,88,0.50);
+  --highlight-capture: rgba(255,69,58,0.60);
+  --zone-tint: rgba(10, 132, 255, 0);
+  --check-bg:  rgba(255,69,58,0.55);
+  --selected:  rgba(48,209,88,0.65);
+  --last-move: rgba(245,200,66,0.30);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  font-family: 'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 12px 40px;
+  gap: 16px;
+}
+
+/* ── 헤더 ── */
+header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 1160px;
+}
+h1 {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--gold);
+  text-shadow: 0 2px 16px rgba(245,200,66,0.35);
+  margin: 0;
+}
+.header-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+.header-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.hdr-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.hdr-btn:hover { background: var(--panel2); border-color: var(--gold); }
+.hdr-btn.primary { background: var(--gold); color: #000; border-color: var(--gold); font-weight:700; }
+.hdr-btn.primary:hover { background: var(--gold2); }
+
+/* ── 메인 레이아웃 ── */
+#app {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  width: 100%;
+  max-width: 1160px;
+  align-items: flex-start;
+}
+
+/* ── 사이드 패널 ── */
+.side-panel {
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 16px;
+  width: 230px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ── 플레이어 카드 ── */
+.player-card {
+  border-radius: 12px;
+  padding: 14px;
+  border: 2px solid transparent;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.player-card.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(245,200,66,0.25);
+}
+.player-card.white-side { background: var(--white-side); }
+.player-card.black-side { background: var(--black-side); }
+
+.player-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.player-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4);
+  flex-shrink: 0;
+}
+.player-dot.white { background: #F5F5F5; }
+.player-dot.black { background: #1C1C1E; }
+.player-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  flex: 1;
+}
+.turn-badge {
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #000;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.player-card.active .turn-badge { opacity: 1; }
+
+/* 체크 카운터 */
+.check-counter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.check-pips {
+  display: flex;
+  gap: 3px;
+}
+.check-pip {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: transparent;
+  transition: background 0.2s, border-color 0.2s;
+}
+.check-pip.filled { background: var(--red); border-color: var(--red); }
+
+/* 손패 */
+.hand-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+.hand-pieces {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.hand-piece {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  padding: 8px 4px 5px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  position: relative;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  user-select: none;
+  min-height: 58px;
+}
+.hand-piece:hover {
+  background: rgba(245,200,66,0.12);
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+.hand-piece.selected-hand {
+  background: rgba(245,200,66,0.28);
+  border-color: var(--gold);
+  box-shadow: 0 0 8px rgba(245,200,66,0.3);
+}
+.hand-piece .piece-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+}
+.hand-piece .piece-label {
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+.hand-piece .count-badge {
+  position: absolute;
+  top: 3px; right: 4px;
+  background: var(--gold);
+  color: #000;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  width: 15px; height: 15px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800;
+}
+
+/* ── 상태창 ── */
+#status-box {
+  background: var(--panel2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  text-align: center;
+  min-height: 38px;
+  color: var(--gold);
+  font-weight: 700;
+  border: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+/* ── 이동 기록 ── */
+#move-history {
+  background: var(--black-side);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 0.75rem;
+  max-height: 220px;
+  overflow-y: auto;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+#move-history h3 {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.move-entry {
+  padding: 3px 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  gap: 5px;
+}
+.move-entry:last-child { border-bottom: none; }
+.move-white { color: #E5E5EA; }
+.move-black { color: #8E8E93; }
+
+/* ── 보드 컨테이너 ── */
+#board-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+#board-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.axis-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: calc(var(--cell) * 8);
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding: 0 2px;
+  width: 18px;
+  text-align: center;
+}
+.file-labels {
+  display: flex;
+  justify-content: space-around;
+  width: calc(var(--cell) * 8);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ── 보드 ── */
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, var(--cell));
+  grid-template-rows: repeat(8, var(--cell));
+  border: 3px solid #222;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  cursor: pointer;
+}
+.cell {
+  width: var(--cell);
+  height: var(--cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--cell) * 0.60);
+  position: relative;
+  user-select: none;
+  transition: filter 0.12s;
+}
+.cell.light { background: var(--light); }
+.cell.dark  { background: var(--dark); }
+
+/* 배치 구역 파란 도트 패턴 */
+.cell.zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--zone-tint);
+  pointer-events: none;
+}
+.cell.zone::after {
+  content: '';
+  position: absolute;
+  bottom: 3px; right: 3px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(10,132,255,0.45);
+  pointer-events: none;
+}
+
+/* 이동 가능 — 녹색 원 */
+.cell.highlight::before {
+  content: '';
+  position: absolute;
+  top: 32%;
+  left: 32%;
+  width: 36%;
+  height: 36%;
+  border-radius: 50%;
+  background: var(--highlight);
+  pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(48,209,88,0.25);
+}
+/* 폰 배치 시 원과 방향 점 */
+.cell.highlight.pawn-north::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  z-index: 4;
+}
+.cell.highlight.pawn-south::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  z-index: 4;
+}
+/* 캡처 가능 — 빨간 링 */
+.cell.highlight-capture::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,69,58,0.8);
+  pointer-events: none;
+}
+/* 위험한 체크 — 빨간 원 */
+.cell.highlight-danger::after {
+  content: '';
+  position: absolute;
+  top: 32%;
+  left: 32%;
+  width: 36%;
+  height: 36%;
+  border-radius: 50%;
+  background: rgba(255,69,58,0.65);
+  pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(255,69,58,0.4);
+}
+.cell.selected  { background: var(--selected)  !important; }
+.cell.last-move { background: var(--last-move)  !important; }
+.cell.light.last-move {
+  background: rgba(245,200,66,0.4) !important;
+  border: 2px solid #D4AF37 !important;
+}
+.cell.dark.last-move {
+  background: rgba(245,200,66,0.6) !important;
+  border: 2px solid #F5C842 !important;
+}
+.cell.in-check  { background: var(--check-bg)   !important; }
+
+.piece {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+  line-height: 1;
+}
+.piece::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+}
+.piece.pawn-white::after,
+.piece.pawn-black::after {
+  width: 4px;
+  height: 4px;
+  opacity: 0.95;
+}
+.piece.pawn-white::after {
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.piece.pawn-black::after {
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ── 규칙 패널 ── */
+#rules-section {
+  width: 100%;
+  max-width: 1160px;
+}
+#rules-box {
+  display: none;
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  margin-top: 4px;
+}
+#rules-box.open { display: block; }
+#rules-box h2 { color: var(--gold); font-size: 1rem; margin-bottom: 12px; }
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px 20px;
+}
+.rule-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.8rem;
+  color: #C7C7CC;
+  line-height: 1.5;
+}
+.rule-num {
+  background: var(--gold);
+  color: #000;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* ── 프로모션 모달 ── */
+#modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+#modal-overlay.show { display: flex; }
+#modal-box {
+  background: var(--panel);
+  border: 2px solid var(--gold);
+  border-radius: 18px;
+  padding: 28px 32px;
+  text-align: center;
+  min-width: 280px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+#modal-box h2 { font-size: 1.1rem; margin-bottom: 18px; color: var(--gold); }
+.modal-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.modal-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-size: 2rem;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--panel2);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  min-width: 64px;
+}
+.modal-btn span { font-size: 0.7rem; color: var(--muted); }
+.modal-btn:hover {
+  background: rgba(245,200,66,0.2);
+  border-color: var(--gold);
+  transform: scale(1.05);
+}
+
+/* ── 게임 종료 오버레이 ── */
+#end-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+#end-overlay.show { display: flex; }
+#end-box {
+  background: var(--panel);
+  border: 2px solid var(--gold);
+  border-radius: 22px;
+  padding: 44px 52px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+  max-width: 360px;
+  width: 90%;
+}
+#end-box .end-emoji { font-size: 3rem; margin-bottom: 12px; }
+#end-box h2 { font-size: 1.8rem; color: var(--gold); margin-bottom: 8px; font-weight: 800; }
+#end-box p  { font-size: 0.95rem; color: var(--muted); margin-bottom: 28px; }
+#restart-btn {
+  padding: 14px 36px;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+#restart-btn:hover { background: var(--gold2); transform: scale(1.02); }
+
+/* ── 반응형 ── */
+@media (max-width: 820px) {
+  :root { --cell: 52px; }
+  .side-panel { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 10px; }
+  .player-card { flex: 1; min-width: 200px; }
+  #move-history { max-height: 100px; }
+  .hand-pieces { grid-template-columns: repeat(6, 1fr); }
+}
+@media (max-width: 520px) {
+  :root { --cell: 42px; }
+  .hand-piece .piece-icon { font-size: 1.2rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>오목게이</h1>
+  <p class="header-sub">OMOK GAY — 체스 × 오목 하이브리드</p>
+  <div class="header-btns">
+    <button class="hdr-btn primary" id="restart-side-btn">⟳ 새 게임</button>
+    <button class="hdr-btn" id="toggle-rules-btn">규칙 보기</button>
+  </div>
+</header>
+
+<div id="app">
+
+  <!-- 백 패널 -->
+  <div class="side-panel" id="white-panel">
+    <div class="player-card white-side" id="white-info">
+      <div class="player-header">
+        <div class="player-dot white"></div>
+        <span class="player-name">백 진영</span>
+        <span class="turn-badge">내 턴</span>
+      </div>
+      <div class="check-counter">
+        <span>연속</span>
+        <div class="check-pips" id="white-check-pips"></div>
+        <span id="white-check-count">0/3</span>
+        <span style="margin-left:6px">총합</span>
+        <div class="check-pips" id="white-total-pips"></div>
+        <span id="white-total-count">0/5</span>
+      </div>
+      <div class="hand-label">보유 기물 (미배치)</div>
+      <div class="hand-pieces" id="white-hand"></div>
+    </div>
+    <div id="status-box">게임 시작!</div>
+    <div id="move-history">
+      <h3>이동 기록</h3>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- 보드 -->
+  <div id="board-container">
+    <div class="file-labels" id="file-labels-top"></div>
+    <div id="board-wrap">
+      <div class="axis-labels" id="rank-labels"></div>
+      <div id="board"></div>
+      <div class="axis-labels" id="rank-labels-right"></div>
+    </div>
+    <div class="file-labels" id="file-labels"></div>
+  </div>
+
+  <!-- 흑 패널 -->
+  <div class="side-panel" id="black-panel">
+    <div class="player-card black-side" id="black-info">
+      <div class="player-header">
+        <div class="player-dot black"></div>
+        <span class="player-name">흑 진영</span>
+        <span class="turn-badge">내 턴</span>
+      </div>
+      <div class="check-counter">
+        <span>연속</span>
+        <div class="check-pips" id="black-check-pips"></div>
+        <span id="black-check-count">0/3</span>
+        <span style="margin-left:6px">총합</span>
+        <div class="check-pips" id="black-total-pips"></div>
+        <span id="black-total-count">0/5</span>
+      </div>
+      <div class="hand-label">보유 기물 (미배치)</div>
+      <div class="hand-pieces" id="black-hand"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 규칙 섹션 -->
+<div id="rules-section">
+  <div id="rules-box">
+    <h2>게임 규칙</h2>
+    <div class="rules-grid">
+      <div class="rule-item"><div class="rule-num">1</div><span>체크메이트 혹은 자신의 기물 5개를 가로·세로·대각선으로 연속 배치하면 승리.</span></div>
+      <div class="rule-item"><div class="rule-num">2</div><span>각 진영은 첫 번째 턴에 반드시 킹을 배치해야 함.</span></div>
+      <div class="rule-item"><div class="rule-num">3</div><span>기물 배치는 중앙 6×6 구역(파란 점 표시)에만 가능. 이동은 자유.</span></div>
+      <div class="rule-item"><div class="rule-num">4</div><span>킹은 4*4 구역에만 배치 가능.</span></div>
+      <div class="rule-item"><div class="rule-num">5</div><span>매 턴 손패에서 기물을 배치하거나, 보드 위 기물을 체스 규칙대로 이동.</span></div>
+      <div class="rule-item"><div class="rule-num">6</div><span>폰이 상대 진영 끝 행에 도달하면 퀸·룩·비숍·나이트 중 하나로 프로모션.</span></div>
+      <div class="rule-item"><div class="rule-num">7</div><span>체크 상태에서는 반드시 체크를 해결하는 행동만 가능.</span></div>
+      <div class="rule-item"><div class="rule-num">8</div><span>3회 연속 체크를 걸면 패배.</span></div>
+      <div class="rule-item"><div class="rule-num">9</div><span>한 게임 동안 최대 5회 까지만 체크를 걸 수 있음.</span></div>
+      <div class="rule-item"><div class="rule-num">10</div><span>스테일메이트 / 3수 동행 / 기물 부족 시 무승부.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 프로모션 모달 -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h2>프로모션 선택</h2>
+    <div class="modal-btns" id="promo-btns"></div>
+  </div>
+</div>
+
+<!-- 게임 종료 오버레이 -->
+<div id="end-overlay">
+  <div id="end-box">
+    <div class="end-emoji" id="end-emoji">🏆</div>
+    <h2 id="end-title"></h2>
+    <p  id="end-desc"></p>
+    <button id="restart-btn">재시작</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   상수
+============================================================ */
+const PIECE_SYMBOLS = {
+  wK:'♚', wQ:'♛', wR:'♜', wB:'♝', wN:'♞', wP:'♟',
+  bK:'♚', bQ:'♛', bR:'♜', bB:'♝', bN:'♞', bP:'♟'
+};
+const INIT_HAND   = { K:1, Q:1, R:2, B:2, N:2, P:8 };
+const PIECE_NAMES = { K:'킹', Q:'퀸', R:'룩', B:'비숍', N:'나이트', P:'폰' };
+const PROMO_PIECES = ['Q','R','B','N'];
+const MAX_CONSEC_CHECK = 3; // 이 횟수 연속 체크 시 체크 건 쪽 패배
+const MAX_TOTAL_CHECK  = 5; // 한 판 동안 한 진영이 걸 수 있는 체크 최대 횟수
+
+/* ============================================================
+   게임 상태
+============================================================ */
+let board, turn, hand, selectedHandPiece, selectedCell, highlights, gameOver;
+let lastMove, positionHistory, checkState;
+// consecCheckBy[color] = 내가 상대에게 연속으로 걸고 있는 체크 횟수
+let consecCheckBy;
+// totalCheckBy[color] = 한 판 통틀어 내가 건 체크 총 횟수
+let totalCheckBy;
+// 이전 상태 저장 (5회 체크 시 복원용)
+let prevBoard, prevHand, prevTurn, prevLastMove;
+
+let rulesOpen = false;
+
+/* ============================================================
+   셀 크기 반응형
+============================================================ */
+function setCellSize() {
+  const vw = Math.min(window.innerWidth, 620);
+  const size = Math.floor((vw - 72) / 8);
+  const cell = Math.max(42, Math.min(size, 76));
+  document.documentElement.style.setProperty('--cell', cell + 'px');
+}
+setCellSize();
+window.addEventListener('resize', setCellSize);
+
+/* ============================================================
+   유틸
+============================================================ */
+const inBounds = (r,c) => r>=0&&r<8&&c>=0&&c<8;
+const fileChar  = col => 'abcdefgh'[col];
+const rankNum   = row => 8 - row;
+
+function isPlacementZone(row, col) {
+  // 6×6 배치 구역: 가장자리(0행,7행,0열,7열) 제외한 전체
+  return row>=1 && row<=6 && col>=1 && col<=6;
+}
+function isKingPlacementZone(row, col) {
+  // 킹 배치용 4×4 구역: 가운데 (row 2-5, col 2-5)
+  return row>=2 && row<=5 && col>=2 && col<=5;
+}
+function copyBoard(b) {
+  return b.map(r => r.map(c => c ? {...c} : null));
+}
+function serializeState(board, turn) {
+  return board.map(r=>r.map(c=>c?c.color+c.type:'.')).join(',')+'|'+turn;
+}
+
+/* ============================================================
+   체스 이동 규칙
+============================================================ */
+function rawMoves(board, row, col, attackOnly=false) {
+  const p = board[row][col];
+  if (!p) return [];
+  const {color, type} = p;
+  const moves = [];
+  const opp = color==='w'?'b':'w';
+  const add = (r,c) => {
+    if (!inBounds(r,c)) return false;
+    const t = board[r][c];
+    if (t && t.color===color) return false;
+    moves.push({row:r, col:c});
+    return !t;
+  };
+  const slide = (dr,dc) => {
+    let r=row+dr, c=col+dc;
+    while(inBounds(r,c)) {
+      const t=board[r][c];
+      if(t&&t.color===color) break;
+      moves.push({row:r,col:c});
+      if(t) break;
+      r+=dr; c+=dc;
+    }
+  };
+  switch(type) {
+    case 'K': [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>add(row+dr,col+dc)); break;
+    case 'Q': [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]].forEach(d=>slide(d[0],d[1])); break;
+    case 'R': [[-1,0],[1,0],[0,-1],[0,1]].forEach(d=>slide(d[0],d[1])); break;
+    case 'B': [[-1,-1],[-1,1],[1,-1],[1,1]].forEach(d=>slide(d[0],d[1])); break;
+    case 'N': [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>add(row+dr,col+dc)); break;
+    case 'P': {
+      const dir = color==='w' ? -1 : 1;
+      if (!attackOnly) {
+        if (inBounds(row+dir,col) && !board[row+dir][col]) moves.push({row:row+dir,col:col});
+        const startRow = color==='w' ? 6 : 1;
+        if (row===startRow && !board[row+dir][col] && !board[row+2*dir][col]) moves.push({row:row+2*dir,col:col});
+      }
+      [[dir,-1],[dir,1]].forEach(([dr,dc])=>{
+        if(!inBounds(row+dr,col+dc)) return;
+        if(attackOnly) moves.push({row:row+dr,col:col+dc});
+        else if(board[row+dr][col+dc]?.color===opp) moves.push({row:row+dr,col:col+dc});
+      });
+      break;
+    }
+  }
+  return moves;
+}
+
+function isAttackedBy(board, r, c, byColor) {
+  for(let dr=0;dr<8;dr++) for(let dc=0;dc<8;dc++) {
+    const p=board[dr][dc];
+    if(!p||p.color!==byColor) continue;
+    if(rawMoves(board,dr,dc,true).some(m=>m.row===r&&m.col===c)) return true;
+  }
+  return false;
+}
+function findKing(board, color) {
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+    if(board[r][c]?.color===color&&board[r][c]?.type==='K') return {row:r,col:c};
+  return null;
+}
+function isInCheck(board, color) {
+  const k=findKing(board,color);
+  if(!k) return false;
+  return isAttackedBy(board,k.row,k.col,color==='w'?'b':'w');
+}
+function legalMoves(board, row, col) {
+  const p=board[row][col];
+  if(!p) return [];
+  const color=p.color;
+  return rawMoves(board,row,col).filter(({row:r,col:c})=>{
+    const nb=copyBoard(board);
+    nb[r][c]=nb[row][col]; nb[row][col]=null;
+    return !isInCheck(nb,color);
+  });
+}
+function legalPlacements(board, type, color) {
+  const result=[];
+  const isKing = type === 'K';
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+    const zone = isKing ? isKingPlacementZone(r,c) : isPlacementZone(r,c);
+    if(!zone||board[r][c]) continue;
+    const nb=copyBoard(board);
+    nb[r][c]={color,type};
+    if(!isInCheck(nb,color)) result.push({row:r,col:c});
+  }
+  return result;
+}
+function hasAnyLegalAction(board, color, hand) {
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+    if(board[r][c]?.color===color && legalMoves(board,r,c).length>0) return true;
+  for(const type of Object.keys(hand[color]))
+    if(hand[color][type]>0 && legalPlacements(board,type,color).length>0) return true;
+  return false;
+}
+function isCheckMove(board, fromRow, fromCol, toRow, toCol, color) {
+  const nb=copyBoard(board);
+  const piece=nb[fromRow][fromCol];
+  nb[toRow][toCol]=piece;
+  nb[fromRow][fromCol]=null;
+  const opp=color==='w'?'b':'w';
+  return isInCheck(nb,opp);
+}
+function isCheckPlacement(board, type, row, col, color) {
+  const nb=copyBoard(board);
+  nb[row][col]={color,type};
+  const opp=color==='w'?'b':'w';
+  return isInCheck(nb,opp);
+}
+
+/* ============================================================
+   오목 판정
+============================================================ */
+function checkOmok(board, color) {
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+    if(!board[r][c]||board[r][c].color!==color) continue;
+    for(const [dr,dc] of dirs) {
+      const pr=r-dr, pc=c-dc;
+      if(inBounds(pr,pc)&&board[pr][pc]?.color===color) continue;
+      let cnt=1, nr=r+dr, nc=c+dc;
+      while(inBounds(nr,nc)&&board[nr][nc]?.color===color){cnt++;nr+=dr;nc+=dc;}
+      if(cnt>=5) return true;
+    }
+  }
+  return false;
+}
+
+/* ============================================================
+   이동 / 배치 수행
+============================================================ */
+let pendingPromo = null;
+
+function doMove(fromRow, fromCol, toRow, toCol) {
+  // 이전 상태 저장 (5회 체크 시 복원용)
+  prevBoard = copyBoard(board);
+  prevHand = {w:{...hand.w}, b:{...hand.b}};
+  prevTurn = turn;
+  prevLastMove = lastMove ? {...lastMove} : null;
+
+  const nb=copyBoard(board);
+  const piece=nb[fromRow][fromCol];
+  const captured=nb[toRow][toCol];
+  nb[toRow][toCol]=piece;
+  nb[fromRow][fromCol]=null;
+  const capturedStr = captured ? `×${PIECE_NAMES[captured.type]}` : '';
+  addHistory(turn, `${PIECE_NAMES[piece.type]} ${fileChar(fromCol)}${rankNum(fromRow)}→${fileChar(toCol)}${rankNum(toRow)}${capturedStr}`);
+
+  if(piece.type==='P') {
+    if((piece.color==='w'&&toRow===0)||(piece.color==='b'&&toRow===7)) {
+      board=nb;
+      lastMove={fromRow,fromCol,toRow,toCol};
+      pendingPromo={row:toRow,col:toCol,color:piece.color};
+      showPromoModal(piece.color);
+      return;
+    }
+  }
+  board=nb;
+  lastMove={fromRow,fromCol,toRow,toCol};
+  finishTurn();
+}
+
+function doPlace(type, row, col) {
+  // 이전 상태 저장 (5회 체크 시 복원용)
+  prevBoard = copyBoard(board);
+  prevHand = {w:{...hand.w}, b:{...hand.b}};
+  prevTurn = turn;
+  prevLastMove = lastMove ? {...lastMove} : null;
+
+  const nb=copyBoard(board);
+  nb[row][col]={color:turn,type};
+  hand[turn][type]--;
+  board=nb;
+  lastMove=null;
+  addHistory(turn, `P ${PIECE_NAMES[type]} → ${fileChar(col)}${rankNum(row)}`);
+  finishTurn();
+}
+
+/* ============================================================
+   턴 종료 & 승패 판정
+============================================================ */
+function finishTurn() {
+  const opp = turn==='w'?'b':'w';
+
+  // 오목 승리
+  if(checkOmok(board,turn)) {
+    endGame('🎉', (turn==='w'?'백':'흑')+' 승리!', '오목 완성');
+    return;
+  }
+
+  // 체크 상태 판정
+  const oppInCheck = isInCheck(board,opp);
+  checkState[opp] = oppInCheck;
+  checkState[turn] = false;
+
+  // 연속 체크 카운터 갱신
+  if(oppInCheck) {
+    // turn이 opp에게 체크를 걸었음
+    consecCheckBy[turn]++;
+    totalCheckBy[turn]++;
+    consecCheckBy[opp] = 0; // 상대방 연속 기록은 리셋
+  } else {
+    consecCheckBy[turn] = 0;
+  }
+
+  // 3회 연속 체크 패배 룰
+  if(consecCheckBy[turn] >= MAX_CONSEC_CHECK) {
+    endGame('⚠️', (turn==='w'?'백':'흑')+' 자멸!', `반칙패 — 3회 연속 체크`);
+    return;
+  }
+
+  // 한 판 체크 5회 초과 시 이전 상태로 복원
+  if(totalCheckBy[turn] > MAX_TOTAL_CHECK) {
+    // 이전 상태로 복원
+    board = prevBoard;
+    hand = {w:{...prevHand.w}, b:{...prevHand.b}};
+    turn = prevTurn;
+    lastMove = prevLastMove ? {...prevLastMove} : null;
+    
+    // 체크 횟수 감소 (방금 걸은 체크를 취소)
+    consecCheckBy[prevTurn]--;
+    totalCheckBy[prevTurn]--;
+    
+    // 메시지 출력
+    setStatus((prevTurn==='w'?'백':'흑')+' 진영: 체크 5회 초과! 이전 턴으로 돌아갔습니다.');
+    selectedHandPiece=null;
+    selectedCell=null;
+    highlights=[];
+    
+    // 이동 기록에서 마지막 항목 제거
+    const historyList = document.getElementById('history-list');
+    if(historyList.lastChild) historyList.removeChild(historyList.lastChild);
+    
+    renderAll();
+    return;
+  }
+
+  // 체크메이트 / 스테일메이트
+  const oppHasAction = hasAnyLegalAction(board,opp,hand);
+  if(!oppHasAction) {
+    if(oppInCheck) endGame('🏆', (turn==='w'?'백':'흑')+' 승리!', '체크메이트');
+    else            endGame('🤝', '무승부', '스테일메이트');
+    return;
+  }
+
+  // 3회 반복
+  const state=serializeState(board,opp);
+  positionHistory.push(state);
+  if(positionHistory.filter(s=>s===state).length>=3) {
+    endGame('🤝','무승부','3수 동행');
+    return;
+  }
+
+  turn=opp;
+  selectedHandPiece=null;
+  selectedCell=null;
+  highlights=[];
+
+  const kingNeeded = findKing(board,turn)===null;
+  let statusMsg = (turn==='w'?'백':'흑')+' 턴';
+  if(kingNeeded) statusMsg += ' — 킹 배치';
+  else if(isInCheck(board,turn)) statusMsg += ' ⚠ 체크!';
+  setStatus(statusMsg);
+  renderAll();
+}
+
+function endGame(emoji, title, desc) {
+  gameOver=true;
+  document.getElementById('end-emoji').textContent=emoji;
+  document.getElementById('end-title').textContent=title;
+  document.getElementById('end-desc').textContent=desc;
+  document.getElementById('end-overlay').classList.add('show');
+  renderAll();
+}
+
+/* ============================================================
+   프로모션 모달
+============================================================ */
+function showPromoModal(color) {
+  const btns=document.getElementById('promo-btns');
+  btns.innerHTML='';
+  PROMO_PIECES.forEach(type=>{
+    const btn=document.createElement('button');
+    btn.className='modal-btn';
+    const icon=document.createElement('span');
+    icon.style.fontSize='2rem';
+    icon.textContent=PIECE_SYMBOLS[color+type];
+    icon.style.color=color==='w'?'#fff':'#111';
+    const label=document.createElement('span');
+    label.textContent=PIECE_NAMES[type];
+    btn.appendChild(icon);
+    btn.appendChild(label);
+    btn.onclick=()=>{
+      board[pendingPromo.row][pendingPromo.col].type=type;
+      pendingPromo=null;
+      document.getElementById('modal-overlay').classList.remove('show');
+      finishTurn();
+    };
+    btns.appendChild(btn);
+  });
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+/* ============================================================
+   클릭 핸들러
+============================================================ */
+function onCellClick(row, col) {
+  if(gameOver||pendingPromo) return;
+  const kingPlaced = findKing(board,turn)!==null;
+
+  if(!kingPlaced) {
+    if(selectedHandPiece!=='K') { setStatus('첫 번째 턴: 킹을 먼저 배치해야 합니다!'); return; }
+    if(!isKingPlacementZone(row,col)) { setStatus('킹은 중앙 4×4 구역에만 배치 가능합니다!'); return; }
+    if(board[row][col]) { setStatus('이미 기물이 있는 칸입니다!'); return; }
+    doPlace('K',row,col); return;
+  }
+
+  if(selectedHandPiece) {
+    if(!isPlacementZone(row,col)||board[row][col]) {
+      selectedHandPiece=null; highlights=[]; renderBoard(); return;
+    }
+    if(isInCheck(board,turn)) {
+      const nb=copyBoard(board); nb[row][col]={color:turn,type:selectedHandPiece};
+      if(isInCheck(nb,turn)) { setStatus('체크 상태 — 체크를 해결해야 합니다!'); return; }
+    }
+    doPlace(selectedHandPiece,row,col); return;
+  }
+
+  if(selectedCell) {
+    const {row:fr,col:fc}=selectedCell;
+    if(fr===row&&fc===col) { selectedCell=null; highlights=[]; renderBoard(); return; }
+    if(highlights.some(h=>h.row===row&&h.col===col)) { doMove(fr,fc,row,col); return; }
+    if(board[row][col]?.color===turn) {
+      selectedCell={row,col};
+      const isInDanger = totalCheckBy[turn]>=MAX_TOTAL_CHECK || consecCheckBy[turn]>=2;
+      highlights=legalMoves(board,row,col).map(m=>{
+        let type='move';
+        if(board[m.row][m.col]) type='capture';
+        else if(isInDanger && isCheckMove(board,row,col,m.row,m.col,turn)) type='danger';
+        return {...m,type};
+      });
+      renderBoard(); return;
+    }
+    selectedCell=null; highlights=[]; renderBoard(); return;
+  }
+
+  if(board[row][col]?.color===turn) {
+    selectedCell={row,col};
+    const isInDanger = totalCheckBy[turn]>=MAX_TOTAL_CHECK || consecCheckBy[turn]>=2;
+    highlights=legalMoves(board,row,col).map(m=>{
+      let type='move';
+      if(board[m.row][m.col]) type='capture';
+      else if(isInDanger && isCheckMove(board,row,col,m.row,m.col,turn)) type='danger';
+      return {...m,type};
+    });
+    renderBoard();
+  }
+}
+
+function onHandClick(color, type) {
+  if(gameOver||color!==turn||hand[color][type]<=0) return;
+  const kingPlaced=findKing(board,turn)!==null;
+  if(!kingPlaced&&type!=='K') { setStatus('첫 번째 턴: 킹을 먼저 배치해야 합니다!'); return; }
+
+  if(selectedHandPiece===type) { selectedHandPiece=null; highlights=[]; }
+  else {
+    selectedHandPiece=type; selectedCell=null;
+    const isInDanger = totalCheckBy[turn]>=MAX_TOTAL_CHECK || consecCheckBy[turn]>=2;
+    highlights=legalPlacements(board,type,turn).map(m=>{
+      let hlType='place';
+      if(isInDanger && isCheckPlacement(board,type,m.row,m.col,turn)) hlType='danger';
+      const obj = {...m,type:hlType};
+      if(type === 'P') obj.direction = turn === 'w' ? 'north' : 'south';
+      return obj;
+    });
+  }
+  renderAll();
+}
+
+/* ============================================================
+   렌더링
+============================================================ */
+function renderBoard() {
+  const boardEl=document.getElementById('board');
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+    const cell=boardEl.children[r*8+c];
+    const isLight=(r+c)%2===0;
+    cell.className='cell '+(isLight?'light':'dark');
+    if(isPlacementZone(r,c)) cell.classList.add('zone');
+    if(lastMove&&((r===lastMove.fromRow&&c===lastMove.fromCol)||(r===lastMove.toRow&&c===lastMove.toCol)))
+      cell.classList.add('last-move');
+    if(selectedCell&&selectedCell.row===r&&selectedCell.col===c) cell.classList.add('selected');
+    const hl=highlights.find(h=>h.row===r&&h.col===c);
+    if(hl) {
+      if(hl.type==='capture') cell.classList.add('highlight-capture');
+      else if(hl.type==='danger') cell.classList.add('highlight-danger');
+      else cell.classList.add('highlight');
+      if(hl.direction) cell.classList.add(`pawn-${hl.direction}`);
+    }
+    const piece=board[r][c];
+    if(piece?.type==='K'&&checkState[piece.color]) cell.classList.add('in-check');
+    const pieceEl=cell.querySelector('.piece');
+    pieceEl.className='piece';
+    if(piece) {
+      pieceEl.textContent=PIECE_SYMBOLS[piece.color+piece.type];
+      pieceEl.style.color=piece.color==='w'?'#FAFAFA':'#0A0A0A';
+      if(piece.type==='P') {
+        pieceEl.classList.add(piece.color==='w' ? 'pawn-white' : 'pawn-black');
+      }
+    } else {
+      pieceEl.textContent='';
+      pieceEl.style.color='';
+    }
+  }
+}
+
+function renderHand(color) {
+  const el=document.getElementById(color==='w'?'white-hand':'black-hand');
+  el.innerHTML='';
+  ['K','Q','R','B','N','P'].forEach(type=>{
+    const cnt=hand[color][type];
+    if(cnt<=0) return;
+    const span=document.createElement('span');
+    span.className='hand-piece';
+    if(selectedHandPiece===type&&color===turn) span.classList.add('selected-hand');
+
+    const icon=document.createElement('span');
+    icon.className='piece-icon';
+    icon.textContent=PIECE_SYMBOLS[color+type];
+    icon.style.color=color==='w'?'#FAFAFA':'#0A0A0A';
+
+    const lbl=document.createElement('span');
+    lbl.className='piece-label';
+    lbl.textContent=PIECE_NAMES[type];
+
+    span.appendChild(icon);
+    span.appendChild(lbl);
+
+    if(cnt>1) {
+      const badge=document.createElement('span');
+      badge.className='count-badge';
+      badge.textContent=cnt;
+      span.appendChild(badge);
+    }
+    span.title=PIECE_NAMES[type];
+    span.addEventListener('click',()=>onHandClick(color,type));
+    el.appendChild(span);
+  });
+}
+
+function renderCheckCounters() {
+  ['w','b'].forEach(color=>{
+    const pre = color==='w' ? 'white' : 'black';
+    // 연속 체크 pip
+    const pipsEl   = document.getElementById(`${pre}-check-pips`);
+    const countEl  = document.getElementById(`${pre}-check-count`);
+    const n = consecCheckBy[color];
+    pipsEl.innerHTML='';
+    for(let i=0;i<MAX_CONSEC_CHECK;i++){
+      const pip=document.createElement('div');
+      pip.className='check-pip'+(i<n?' filled':'');
+      pipsEl.appendChild(pip);
+    }
+    countEl.textContent=`${n}/${MAX_CONSEC_CHECK}`;
+    countEl.style.color = n>=2 ? '#FF453A' : '';
+
+    // 총합 체크 pip
+    const totalPipsEl  = document.getElementById(`${pre}-total-pips`);
+    const totalCountEl = document.getElementById(`${pre}-total-count`);
+    const t = totalCheckBy[color];
+    totalPipsEl.innerHTML='';
+    for(let i=0;i<MAX_TOTAL_CHECK;i++){
+      const pip=document.createElement('div');
+      pip.className='check-pip'+(i<t?' filled':'');
+      // 총합은 주황색으로 구분
+      if(i<t) pip.style.cssText='background:#FF9500;border-color:#FF9500';
+      totalPipsEl.appendChild(pip);
+    }
+    totalCountEl.textContent=`${t}/${MAX_TOTAL_CHECK}`;
+    totalCountEl.style.color = t>=4 ? '#FF453A' : '';
+  });
+}
+
+function renderPlayerInfo() {
+  document.getElementById('white-info').classList.toggle('active',turn==='w');
+  document.getElementById('black-info').classList.toggle('active',turn==='b');
+}
+
+function renderAll() {
+  renderBoard();
+  renderHand('w');
+  renderHand('b');
+  renderPlayerInfo();
+  renderCheckCounters();
+}
+
+function setStatus(msg) { document.getElementById('status-box').textContent=msg; }
+
+function addHistory(color, text) {
+  const list=document.getElementById('history-list');
+  const entry=document.createElement('div');
+  entry.className='move-entry '+(color==='w'?'move-white':'move-black');
+  const prefix=color==='w'?'⬜':'⬛';
+  entry.textContent=`${prefix} ${text}`;
+  list.appendChild(entry);
+  list.parentElement.scrollTop=list.parentElement.scrollHeight;
+}
+
+/* ============================================================
+   보드 DOM 구축
+============================================================ */
+function buildBoardDOM() {
+  const boardEl=document.getElementById('board');
+  boardEl.innerHTML='';
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) {
+    const cell=document.createElement('div');
+    cell.className='cell';
+    cell.dataset.row=r; cell.dataset.col=c;
+    const piece=document.createElement('span');
+    piece.className='piece';
+    cell.appendChild(piece);
+    cell.addEventListener('click',()=>onCellClick(r,c));
+    boardEl.appendChild(cell);
+  }
+  // 행 레이블
+  const rankEl=document.getElementById('rank-labels');
+  const rankR =document.getElementById('rank-labels-right');
+  rankEl.innerHTML=''; rankR.innerHTML='';
+  for(let r=0;r<8;r++) {
+    [rankEl,rankR].forEach(el=>{
+      const d=document.createElement('div');
+      d.textContent=8-r;
+      el.appendChild(d);
+    });
+  }
+  // 열 레이블
+  ['file-labels-top','file-labels'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.innerHTML='';
+    'abcdefgh'.split('').forEach(ch=>{
+      const d=document.createElement('div'); d.textContent=ch; el.appendChild(d);
+    });
+  });
+}
+
+/* ============================================================
+   게임 초기화
+============================================================ */
+function initGame() {
+  board=Array.from({length:8},()=>Array(8).fill(null));
+  turn='w';
+  hand={ w:{...INIT_HAND}, b:{...INIT_HAND} };
+  selectedHandPiece=null; selectedCell=null; highlights=[];
+  gameOver=false; lastMove=null; positionHistory=[];
+  checkState={w:false,b:false};
+  consecCheckBy={w:0,b:0};
+  totalCheckBy={w:0,b:0};
+  prevBoard=null; prevHand=null; prevTurn=null; prevLastMove=null;
+  document.getElementById('history-list').innerHTML='';
+  renderAll();
+  setStatus('백 턴 — 킹 배치');
+}
+
+/* ============================================================
+   이벤트 연결
+============================================================ */
+document.getElementById('restart-btn').addEventListener('click',()=>{
+  document.getElementById('end-overlay').classList.remove('show');
+  initGame();
+});
+document.getElementById('restart-side-btn').addEventListener('click',()=>{
+  document.getElementById('end-overlay').classList.remove('show');
+  initGame();
+});
+document.getElementById('toggle-rules-btn').addEventListener('click',()=>{
+  rulesOpen=!rulesOpen;
+  document.getElementById('rules-box').classList.toggle('open',rulesOpen);
+  document.getElementById('toggle-rules-btn').textContent=rulesOpen?'규칙 숨기기':'규칙 보기';
+});
+
+/* ============================================================
+   시작
+============================================================ */
+buildBoardDOM();
+initGame();
+
+/* --- 온라인 통신 추가 코드 --- */
+const urlParams = new URLSearchParams(window.location.search);
+const roomID = urlParams.get('room');
+const role = urlParams.get('role');
+let conn;
+
+if (roomID) {
+    const peer = new Peer();
+    peer.on('open', (id) => {
+        if (role === 'host') {
+            peer.on('connection', (c) => {
+                conn = c;
+                setupConn();
+            });
+        } else {
+            conn = peer.connect(roomID);
+            setupConn();
+        }
+    });
+}
+
+function setupConn() {
+    conn.on('data', (data) => {
+        if (data.type === 'move') {
+            // 상대방이 보낸 좌표로 돌 놓기 (기존 함수 호출)
+            placePiece(data.r, data.c); 
+        }
+    });
+}
+
+// 돌을 놓는 함수(placePiece 등) 안에 아래 코드를 한 줄 추가해야 합니다.
+// if (conn && conn.open) conn.send({type: 'move', r: r, c: c});
+
+</script>
+</body>
+</html>

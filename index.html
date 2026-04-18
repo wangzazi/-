@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>오목게이 - 로비</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #2C2C2E; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: #3A3A3C; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        input { padding: 10px; border-radius: 5px; border: none; width: 200px; margin-bottom: 10px; }
+        button { padding: 10px 20px; border-radius: 5px; border: none; background: #30D158; color: white; cursor: pointer; font-weight: bold; margin: 5px; }
+        button:hover { background: #28B34A; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>오목게이 온라인</h1>
+        <div id="setup">
+            <button id="btn-create">방 만들기 (호스트)</button>
+            <p>또는</p>
+            <input type="text" id="join-id" placeholder="방 코드를 입력하세요">
+            <button id="btn-join">방 참가하기 (게스트)</button>
+        </div>
+        <div id="waiting" style="display:none;">
+            <p>나의 방 코드:</p>
+            <h2 id="my-id">...</h2>
+            <p>친구에게 이 코드를 알려주세요!</p>
+            <p>친구가 들어오면 자동으로 게임이 시작됩니다.</p>
+        </div>
+    </div>
+
+    <script>
+        const peer = new Peer();
+        
+        peer.on('open', (id) => {
+            document.getElementById('my-id').textContent = id;
+        });
+
+        // 방 만들기
+        document.getElementById('btn-create').addEventListener('click', () => {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('waiting').style.display = 'block';
+        });
+
+        // 상대방 접속 감지
+        peer.on('connection', (conn) => {
+            conn.on('open', () => {
+                // 친구가 들어오면 게임 페이지로 이동 (나는 호스트)
+                window.location.href = `game.html?room=${peer.id}&role=host`;
+            });
+        });
+
+        // 방 참가하기
+        document.getElementById('btn-join').addEventListener('click', () => {
+            const targetId = document.getElementById('join-id').value;
+            if (targetId) {
+                // 바로 게임 페이지로 이동하면서 방 코드 전달 (나는 게스트)
+                window.location.href = `game.html?room=${targetId}&role=guest`;
+            }
+        });
+    </script>
+</body>
+</html>
