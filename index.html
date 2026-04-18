@@ -14,7 +14,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>오목게이 온라인</h1>
+        <h1>오목게이</h1>
         <div id="setup">
             <button id="btn-create">방 만들기 (호스트)</button>
             <p>또는</p>
@@ -43,8 +43,16 @@
         });
 
         // 상대방 접속 감지
-        peer.on('connection', (conn) => {
+        peer.on('connection', (c) => {
+            conn = c;
+
             conn.on('open', () => {
+                setupConnection();
+
+                setStatus('게임을 찾았습니다.'); // 선택
+        initGame(); // 👉 게임 확실히 시작
+
+        sendFullState();
                 // 친구가 들어오면 게임 페이지로 이동 (나는 호스트)
                 window.location.href = `game.html?room=${peer.id}&role=host`;
             });
