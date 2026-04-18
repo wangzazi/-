@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>오목게이</title>
+
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
 <style>
 /* ── 기본 리셋 & 변수 ── */
 :root {
@@ -1038,6 +1041,9 @@ function finishTurn() {
   else if(isInCheck(board,turn)) statusMsg += ' ⚠ 체크!';
   setStatus(statusMsg);
   renderAll();
+
+  if (isHost) sendFullState();
+
 }
 
 function endGame(emoji, title, desc) {
@@ -1047,6 +1053,7 @@ function endGame(emoji, title, desc) {
   document.getElementById('end-desc').textContent=desc;
   document.getElementById('end-overlay').classList.add('show');
   renderAll();
+
 }
 
 /* ============================================================
@@ -1081,8 +1088,10 @@ function showPromoModal(color) {
    클릭 핸들러
 ============================================================ */
 function onCellClick(row, col) {
-  if(gameOver||pendingPromo) return;
-  const kingPlaced = findKing(board,turn)!==null;
+    if (!isHost) {
+        sendInput({ action: 'click', row, col });
+        return;
+    }
 
   if(!kingPlaced) {
     if(selectedHandPiece!=='K') { setStatus('첫 번째 턴: 킹을 먼저 배치해야 합니다!'); return; }
@@ -1134,7 +1143,12 @@ function onCellClick(row, col) {
 }
 
 function onHandClick(color, type) {
-  if(gameOver||color!==turn||hand[color][type]<=0) return;
+    if (!isHost) {
+        sendInput({ action: 'hand', type });
+        return;
+    }
+
+    // 기존 코드 그대로 ↓
   const kingPlaced=findKing(board,turn)!==null;
   if(!kingPlaced&&type!=='K') { setStatus('첫 번째 턴: 킹을 먼저 배치해야 합니다!'); return; }
 
@@ -1335,6 +1349,7 @@ function initGame() {
   document.getElementById('history-list').innerHTML='';
   renderAll();
   setStatus('백 턴 — 킹 배치');
+  if (isHost) sendFullState();
 }
 
 /* ============================================================
@@ -1364,35 +1379,118 @@ initGame();
 const urlParams = new URLSearchParams(window.location.search);
 const roomID = urlParams.get('room');
 const role = urlParams.get('role');
+
+let peer;
 let conn;
 
-if (roomID) {
-    const peer = new Peer();
-    peer.on('open', (id) => {
-        if (role === 'host') {
-            peer.on('connection', (c) => {
-                conn = c;
-                setupConn();
-            });
-        } else {
-            conn = peer.connect(roomID);
-            setupConn();
-        }
-    });
-}
+// 역할 판별
+const isHost = role === 'host';
 
-function setupConn() {
+// Peer 생성
+peer = isHost ? new Peer(roomID) : new Peer();
+
+peer.on('open', () => {
+    if (isHost) {
+        peer.on('connection', (c) => {
+            conn = c;
+            setupConnection();
+
+            // 최초 상태 전송
+            sendFullState();
+        });
+    } else {
+        conn = peer.connect(roomID);
+        conn.on('open', () => {
+            setupConnection();
+        });
+    }
+});
+
+// 연결 설정
+function setupConnection() {
     conn.on('data', (data) => {
-        if (data.type === 'move') {
-            // 상대방이 보낸 좌표로 돌 놓기 (기존 함수 호출)
-            placePiece(data.r, data.c); 
+
+        // 🔵 호스트는 입력 받음
+        if (isHost) {
+            if (data.type === 'input') {
+                handleRemoteInput(data);
+            }
+        }
+
+        // 🟢 게스트는 상태만 받음
+        else {
+            if (data.type === 'sync') {
+                applyState(data.state);
+            }
         }
     });
 }
 
-// 돌을 놓는 함수(placePiece 등) 안에 아래 코드를 한 줄 추가해야 합니다.
-// if (conn && conn.open) conn.send({type: 'move', r: r, c: c});
+// =============================
+// 📤 상태 전송 (호스트 → 게스트)
+// =============================
+function sendFullState() {
+    if (!conn || !conn.open) return;
 
+    conn.send({
+        type: 'sync',
+        state: {
+            board,
+            turn,
+            hand,
+            lastMove,
+            consecCheckBy,
+            totalCheckBy,
+            checkState
+        }
+    });
+}
+
+// =============================
+// 📥 상태 적용 (게스트)
+// =============================
+function applyState(state) {
+    board = state.board;
+    turn = state.turn;
+    hand = state.hand;
+    lastMove = state.lastMove;
+    consecCheckBy = state.consecCheckBy;
+    totalCheckBy = state.totalCheckBy;
+    checkState = state.checkState;
+
+    selectedCell = null;
+    selectedHandPiece = null;
+    highlights = [];
+
+    renderAll();
+}
+
+// =============================
+// 🎮 게스트 입력 전송
+// =============================
+function sendInput(data) {
+    if (!isHost && conn && conn.open) {
+        conn.send({
+            type: 'input',
+            ...data
+        });
+    }
+}
+
+// =============================
+// 🧠 호스트가 입력 처리
+// =============================
+function handleRemoteInput(data) {
+    if (data.action === 'click') {
+        onCellClick(data.row, data.col);
+    }
+    if (data.action === 'hand') {
+        onHandClick(turn, data.type);
+    }
+
+    // 처리 후 상태 동기화
+    sendFullState();
+}
 </script>
 </body>
 </html>
