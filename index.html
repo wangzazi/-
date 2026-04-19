@@ -91,16 +91,26 @@ body{
 .fb-dot.err{background:var(--red);}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
 
-/* ── 방 대기 오버레이 ── */
-#waiting-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:100;align-items:center;justify-content:center;}
-#waiting-overlay.show{display:flex;}
-.waiting-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:40px 36px;width:100%;max-width:400px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
-.waiting-title{font-size:1rem;color:var(--muted);}
-.waiting-code{font-size:2.8rem;font-weight:800;letter-spacing:8px;color:var(--gold);background:var(--panel2);border:2px dashed var(--border);border-radius:14px;padding:16px 28px;cursor:pointer;font-family:'Consolas',monospace;transition:border-color 0.2s;}
-.waiting-code:hover{border-color:var(--gold);}
-.waiting-hint{font-size:0.75rem;color:var(--muted);margin-top:-8px;}
-.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
+/* ── 방 대기 화면 (screen으로 전환) ── */
+#screen-waiting .waiting-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+  padding: 40px 36px; width: 100%; max-width: 440px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 18px; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  margin: 0 auto;
+}
+.waiting-title { font-size: 1rem; color: var(--muted); }
+.waiting-code {
+  font-size: 3rem; font-weight: 800; letter-spacing: 10px; color: var(--gold);
+  background: var(--panel2); border: 2px dashed var(--border); border-radius: 14px;
+  padding: 20px 32px; cursor: pointer; font-family: 'Consolas', monospace;
+  transition: border-color 0.2s; width: 100%; text-align: center;
+}
+.waiting-code:hover { border-color: var(--gold); }
+.waiting-hint { font-size: 0.75rem; color: var(--muted); margin-top: -10px; }
+.spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── 코드 직접 입력 (방 목록 아래) ── */
 .divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
@@ -169,7 +179,7 @@ body{
     <div class="panel-card">
       <div class="panel-title">🏠 방 만들기</div>
       <div class="form-label">방 이름 (선택사항)</div>
-      <input class="text-input" id="room-name-input" maxlength="20" placeholder="방 제목 입력">
+      <input class="text-input" id="room-name-input" maxlength="20" placeholder="예: 고수만 오세요">
       <button class="btn btn-gold" id="btn-create" onclick="createRoom()" disabled>방 만들기 (호스트 = 백)</button>
       <div class="status-msg" id="create-msg"></div>
       <div class="divider"></div>
@@ -181,15 +191,15 @@ body{
   </div>
 </div>
 
-<!-- ── 방 대기 오버레이 ── -->
-<div id="waiting-overlay">
+<!-- ── 방 대기 화면 ── -->
+<div class="screen" id="screen-waiting">
   <div class="waiting-card">
     <p class="waiting-title">방 생성 완료! 상대방을 기다리는 중...</p>
     <div class="waiting-code" id="display-code" onclick="copyCode()" title="클릭하면 복사">------</div>
-    <p class="waiting-hint">클릭하면 복사됩니다</p>
+    <p class="waiting-hint">클릭하면 코드가 클립보드에 복사됩니다</p>
     <div class="spinner"></div>
     <div class="status-msg wait" id="wait-msg">상대방 입장 대기 중...</div>
-    <button class="btn btn-dark" style="width:auto;padding:10px 24px;" onclick="cancelRoom()">방 취소</button>
+    <button class="btn btn-dark" style="width:auto;padding:10px 28px;margin-top:4px;" onclick="cancelRoom()">🚪 방 취소하고 돌아가기</button>
   </div>
 </div>
 
@@ -201,13 +211,13 @@ body{
    ▼▼▼ Firebase 설정 — 이 부분을 본인 값으로 교체하세요 ▼▼▼
 ============================================================ */
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyD_bv9vLqcMDMZgGHNLS2A94INXqkO8XX8",
-  authDomain:        "ooooomok-285e6.firebaseapp.com",
-  databaseURL:       "https://ooooomok-285e6-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "ooooomok-285e6",
-  storageBucket:     "ooooomok-285e6.firebasestorage.app",
-  messagingSenderId: "764275385569",
-  appId:             "1:764275385569:web:44cecc18de9aef4d9a43a0",
+  apiKey:            "여기에-apiKey",
+  authDomain:        "여기에-authDomain",
+  databaseURL:       "여기에-databaseURL",
+  projectId:         "여기에-projectId",
+  storageBucket:     "여기에-storageBucket",
+  messagingSenderId: "여기에-messagingSenderId",
+  appId:             "여기에-appId",
 };
 /* ▲▲▲ Firebase 설정 끝 ▲▲▲ */
 
@@ -223,28 +233,35 @@ let roomWatcher = null;   // 내 방 감시 리스너
 /* ============================================================
    Firebase 초기화
 ============================================================ */
+let listenerAttached = false;  // 리스너 중복 방지 플래그
+
 function initFirebase() {
   try {
     if (FIREBASE_CONFIG.apiKey.includes('여기에')) {
       setFbStatus('err', 'Firebase 미설정');
       showRoomList([]);
-      document.getElementById('btn-create').disabled = false; // 로컬 fallback
+      document.getElementById('btn-create').disabled = false;
       document.getElementById('create-msg').textContent = '⚠ Firebase 미설정 — 코드 직접 입력 방식으로만 사용 가능합니다.';
       document.getElementById('create-msg').className = 'status-msg error';
       return;
     }
-    firebase.initializeApp(FIREBASE_CONFIG);
+    if (firebase.apps.length === 0) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
     db = firebase.database();
     roomsRef = db.ref('rooms');
 
-    // 연결 테스트
+    // 연결 상태 감시
     db.ref('.info/connected').on('value', snap => {
       if (snap.val() === true) {
         setFbStatus('ok', 'Firebase 연결됨');
         fbReady = true;
         document.getElementById('btn-create').disabled = false;
-        loadRooms();
-        startRoomsListener();
+        // 리스너는 최초 1회만 등록
+        if (!listenerAttached) {
+          listenerAttached = true;
+          startRoomsListener();
+        }
       } else {
         setFbStatus('spin', '재연결 중...');
         fbReady = false;
@@ -256,21 +273,24 @@ function initFirebase() {
   }
 }
 
+function startLocal() {
+  window.location.href = 'omokgay.html';
+}
+
 /* ============================================================
    방 목록 실시간 리스너
 ============================================================ */
 function startRoomsListener() {
-  // 대기 중인 방만 구독 (30분 이내)
+  const cutoff = Date.now() - 30 * 60 * 1000;
   roomsRef.orderByChild('createdAt').on('value', snap => {
     const rooms = [];
-    const cutoff = Date.now() - 30 * 60 * 1000;
     snap.forEach(child => {
       const r = child.val();
-      if (r && r.createdAt > cutoff && !r.started) {
+      // 30분 이내, 시작 안 됨, 내가 만든 방 제외
+      if (r && r.createdAt > cutoff && !r.started && child.key !== myRoomCode) {
         rooms.push({ code: child.key, ...r });
       }
     });
-    // 최신순 정렬
     rooms.sort((a,b) => b.createdAt - a.createdAt);
     showRoomList(rooms);
   });
@@ -371,10 +391,10 @@ async function createRoom() {
     started: false,
   });
 
-  // 대기 화면 표시
+  // 대기 화면으로 전환
   document.getElementById('display-code').textContent = code;
   document.getElementById('wait-msg').textContent = '상대방 입장 대기 중...';
-  document.getElementById('waiting-overlay').classList.add('show');
+  showScreen('waiting');
 
   // 30분 자동 삭제
   const autoDelete = setTimeout(() => cancelRoom(), 30 * 60 * 1000);
@@ -444,7 +464,7 @@ async function enterAsGuest(code) {
    방 취소
 ============================================================ */
 async function cancelRoom() {
-  document.getElementById('waiting-overlay').classList.remove('show');
+  showScreen('online');
   document.getElementById('btn-create').disabled = false;
 
   if (myRoomCode) {
@@ -478,18 +498,24 @@ function copyCode() {
 }
 
 /* ============================================================
-   탭 전환 / 로컬
+   탭 전환 / 화면 전환
 ============================================================ */
 function switchTab(tab) {
   ['local','online'].forEach(t => {
     document.getElementById('tab-'+t).classList.toggle('active', t===tab);
     document.getElementById('screen-'+t).classList.toggle('active', t===tab);
   });
+  document.getElementById('screen-waiting').classList.remove('active');
   if (tab === 'online' && !db) initFirebase();
 }
 
-function startLocal() {
-  window.location.href = 'omokgay.html';
+function showScreen(name) {
+  ['local','online','waiting'].forEach(s => {
+    document.getElementById('screen-'+s).classList.toggle('active', s===name);
+  });
+  // 탭 활성화 상태 동기화
+  document.getElementById('tab-local').classList.toggle('active',  name==='local');
+  document.getElementById('tab-online').classList.toggle('active', name==='online' || name==='waiting');
 }
 
 /* ============================================================
