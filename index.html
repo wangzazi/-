@@ -73,8 +73,6 @@ body{
 .spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-/* 연결 상태 */
-.peer-status{display:flex;align-items:center;justify-content:center;gap:6px;font-size:0.72rem;color:var(--muted);}
 .peer-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;}
 .peer-dot.ok{background:var(--green);}
 .peer-dot.spin{background:var(--gold);animation:pulse 1s ease infinite;}
@@ -108,18 +106,16 @@ body{
 
   <!-- ── 온라인 메인 ── -->
   <div class="screen" id="screen-online">
-    <div class="peer-status">
-      <div class="peer-dot spin" id="peer-dot"></div>
       <span id="peer-status-text">PeerJS 서버 연결 중...</span>
     </div>
     <hr class="divider">
     <div class="section-label">방 만들기 (호스트 = 백)</div>
-    <button class="btn btn-gold" id="btn-create" onclick="createRoom()" disabled>🏠 방 만들기</button>
+    <button class="btn btn-gold" id="btn-create" onclick="createRoom()">🏠 방 만들기</button>
     <hr class="divider">
     <div class="section-label">방 입장 (게스트 = 흑)</div>
     <div class="input-row">
       <input class="code-input" id="join-input" maxlength="20" placeholder="방 코드 입력">
-      <button class="btn-sm" id="btn-join" onclick="joinRoom()" disabled>입장</button>
+      <button class="btn-sm" id="btn-join" onclick="joinRoom()">입장</button>
     </div>
     <div class="msg" id="online-msg"></div>
   </div>
@@ -146,158 +142,64 @@ body{
   </div>
 </div>
 
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* ============================================================
-   상태
+   index.html — 로비 전용
+   Peer는 여기서 절대 생성하지 않음.
+   방 코드만 생성해서 omokgay.html에 URL로 전달.
+   모든 PeerJS 연결은 omokgay.html에서만 처리.
 ============================================================ */
-let peer        = null;
-let peerReady   = false;
-let roomCode    = null;
-let cancelTimer = null;
-let guestConn   = null;
 
-/* 6자리 영숫자 코드 생성 */
+/* 6자리 코드 생성 */
 function makeCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
 }
 
-/* ============================================================
-   탭 전환
-============================================================ */
+let roomCode    = null;
+let cancelTimer = null;
+
+/* ── 탭 전환 ── */
 function switchTab(tab) {
   ['local','online'].forEach(t => {
     document.getElementById('tab-'+t).classList.toggle('active', t===tab);
     document.getElementById('screen-'+t).classList.toggle('active', t===tab);
   });
-  if (tab === 'online' && !peer) initPeer();
 }
 
-/* ============================================================
-   로컬 시작
-============================================================ */
+/* ── 로컬 시작 ── */
 function startLocal() {
   window.location.href = 'omokgay.html';
 }
 
-/* ============================================================
-   PeerJS 초기화 — 익명 Peer로 서버 연결 확인용
-============================================================ */
-function initPeer() {
-  setPeerStatus('spin', '서버 연결 중...');
-  _spawnPeer(undefined);
-}
-
-/* 내부: 지정 ID로 Peer 생성 */
-function _spawnPeer(id) {
-  if (peer) { try { peer.destroy(); } catch(e) {} peer = null; }
-  peerReady = false;
-
-  peer = new Peer(id, { debug: 0 });
-
-  peer.on('open', assignedId => {
-    peerReady = true;
-    if (id !== undefined) {
-      // 방 코드 확정
-      roomCode = assignedId;
-      _showWaiting(roomCode);
-    } else {
-      setPeerStatus('ok', '연결됨');
-      document.getElementById('btn-create').disabled = false;
-      document.getElementById('btn-join').disabled   = false;
-      setOnlineMsg('방을 만들거나 코드를 입력하세요.', '');
-    }
-  });
-
-  peer.on('error', err => {
-    if (err.type === 'unavailable-id') {
-      // 코드 충돌 → 새 코드로 재시도
-      roomCode = makeCode();
-      setTimeout(() => _spawnPeer(roomCode), 200);
-      return;
-    }
-    if (err.type === 'peer-unavailable') {
-      setOnlineMsg('❌ 방을 찾을 수 없습니다. 코드를 확인하세요.', 'error');
-      showScreen('online');
-      return;
-    }
-    setPeerStatus('err', '연결 오류');
-    setOnlineMsg('❌ ' + (err.type || err.message), 'error');
-  });
-
-  // 호스트: 게스트 연결 수락
-  peer.on('connection', conn => {
-    if (document.getElementById('screen-waiting').classList.contains('active')) {
-      _handleGuestConn(conn);
-    }
-  });
-}
-
-/* ============================================================
-   방 만들기 (호스트)
-============================================================ */
+/* ── 방 만들기 (호스트) ── */
 function createRoom() {
-  if (!peerReady) { setOnlineMsg('서버에 연결 중입니다. 잠시 후 시도해주세요.', 'wait'); return; }
   roomCode = makeCode();
-  _spawnPeer(roomCode);   // 6자리 코드를 PeerID로 직접 등록
-}
-
-/* 대기 화면 표시 */
-function _showWaiting(code) {
-  document.getElementById('display-code').textContent = code;
+  document.getElementById('display-code').textContent = roomCode;
   document.getElementById('wait-msg').textContent = '상대방을 기다리는 중...';
   document.getElementById('wait-spinner').style.display = 'block';
   showScreen('waiting');
-  clearTimeout(cancelTimer);
-  cancelTimer = setTimeout(() => {
-    document.getElementById('wait-msg').textContent = '⏰ 10분 초과. 취소 후 다시 시도하세요.';
-    document.getElementById('wait-spinner').style.display = 'none';
-  }, 10 * 60 * 1000);
+
+  // 호스트는 바로 omokgay.html로 이동 — 거기서 Peer를 만들어 대기
+  window.location.href = 'omokgay.html?role=host&room=' + roomCode;
 }
 
-/* 게스트 연결 처리 — HELLO 없이 즉시 이동 */
-function _handleGuestConn(conn) {
-  clearTimeout(cancelTimer);
-  document.getElementById('wait-msg').textContent = '게스트 입장! 게임 시작...';
-  document.getElementById('wait-spinner').style.display = 'none';
-  // 호스트: peer를 파괴하지 않고 페이지 이동
-  // (peer.destroy 없이 이동하면 잠깐 PeerID가 살아있어 게스트가 연결 가능)
-  window.location.href = `omokgay.html?role=host&room=${roomCode}`;
-}
-
-/* ============================================================
-   방 입장 (게스트) — 코드 입력 후 바로 omokgay.html로 이동
-   실제 PeerJS 연결은 omokgay.html 안에서만 처리
-============================================================ */
+/* ── 방 입장 (게스트) ── */
 function joinRoom() {
-  if (!peerReady) { setOnlineMsg('서버에 연결 중입니다. 잠시 후 시도해주세요.', 'wait'); return; }
   const code = document.getElementById('join-input').value.trim().toUpperCase();
-  if (code.length < 6) { setOnlineMsg('6자리 방 코드를 입력해주세요.', 'error'); return; }
+  if (code.length < 6) { setMsg('6자리 방 코드를 입력해주세요.', 'error'); return; }
   showScreen('connecting');
   document.getElementById('connecting-msg').textContent = '방에 연결 중...';
   setTimeout(() => {
-    window.location.href = `omokgay.html?role=guest&room=${code}`;
+    window.location.href = 'omokgay.html?role=guest&room=' + code;
   }, 200);
 }
 
-/* ============================================================
-   취소
-============================================================ */
-function cancelWait() {
-  clearTimeout(cancelTimer);
-  // 방 코드 Peer 파괴 후 익명 Peer 재생성
-  _spawnPeer(undefined);
-  showScreen('online');
-}
-function cancelConnect() {
-  if (guestConn) { try { guestConn.close(); } catch(e) {} guestConn = null; }
-  showScreen('online');
-}
+/* ── 취소 ── */
+function cancelWait()    { showScreen('online'); }
+function cancelConnect() { showScreen('online'); }
 
-/* ============================================================
-   코드 복사
-============================================================ */
+/* ── 코드 복사 ── */
 function copyCode() {
   const code = document.getElementById('display-code').textContent;
   navigator.clipboard.writeText(code).then(() => {
@@ -313,22 +215,16 @@ function copyCode() {
   });
 }
 
-/* ============================================================
-   화면 전환 / 메시지
-============================================================ */
+/* ── 화면 전환 / 메시지 ── */
 function showScreen(name) {
   ['local','online','waiting','connecting'].forEach(s => {
     document.getElementById('screen-'+s).classList.toggle('active', s===name);
   });
 }
-function setOnlineMsg(msg, type='') {
+function setMsg(msg, type='') {
   const el = document.getElementById('online-msg');
   el.textContent = msg;
   el.className = 'msg' + (type ? ' '+type : '');
-}
-function setPeerStatus(state, text) {
-  document.getElementById('peer-dot').className = 'peer-dot ' + state;
-  document.getElementById('peer-status-text').textContent = text;
 }
 
 /* Enter 키 */
