@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>오목게이</title>
+<!-- Firebase SDK (방 정리용) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 /* ── 기본 리셋 & 변수 ── */
@@ -725,9 +728,41 @@ h1 {
 
 <script>
 /* ============================================================
+   ▼▼▼ Firebase 설정 — index.html과 동일한 값을 여기도 넣어주세요 ▼▼▼
+============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyD_bv9vLqcMDMZgGHNLS2A94INXqkO8XX8",
+  authDomain: "ooooomok-285e6.firebaseapp.com",
+  databaseURL: "https://ooooomok-285e6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ooooomok-285e6",
+  storageBucket: "ooooomok-285e6.firebasestorage.app",
+  messagingSenderId: "764275385569",
+  appId: "1:764275385569:web:44cecc18de9aef4d9a43a0"
+};
+/* ▲▲▲ Firebase 설정 끝 ▲▲▲ */
+
+/* Firebase 초기화 (방 정리 전용) */
+let _fbDb = null;
+function getFbDb() {
+  if (_fbDb) return _fbDb;
+  try {
+    if (FIREBASE_CONFIG.apiKey.includes('여기에')) return null;
+    // 이미 초기화됐으면 기존 인스턴스 사용
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+    _fbDb = firebase.database(app);
+  } catch(e) { console.warn('Firebase DB 오류:', e); }
+  return _fbDb;
+}
+
+/* 호스트가 방을 Firebase에서 삭제 */
+function cleanupRoom(code) {
+  if (!code || !IS_ONLINE || NET_ROLE !== 'host') return;
+  const db = getFbDb();
+  if (db) db.ref('rooms/' + code).remove().catch(() => {});
+}
+
+/* ============================================================
    온라인 모드 — URL 파라미터 파싱 & PeerJS 설정
-   ?role=host&room=PEERID  또는  ?role=guest&room=PEERID
-   파라미터 없으면 → 로컬 모드
 ============================================================ */
 const _urlParams = new URLSearchParams(window.location.search);
 const NET_ROLE   = _urlParams.get('role');   // 'host' | 'guest' | null
@@ -1076,8 +1111,9 @@ function endGame(emoji, title, desc) {
   document.getElementById('end-title').textContent=title;
   document.getElementById('end-desc').textContent=desc;
   document.getElementById('end-overlay').classList.add('show');
-  // 온라인: 결과도 상대에게 전송
   netSend({ type: 'STATE', payload: serializeGameState() });
+  // 게임 종료 시 Firebase에서 방 삭제 (호스트만)
+  cleanupRoom(NET_ROOM);
   renderAll();
 }
 
@@ -1403,17 +1439,17 @@ document.getElementById('toggle-rules-btn').addEventListener('click',()=>{
 ============================================================ */
 function goLobby() {
   if (IS_ONLINE && !gameOver) {
-    // 상대방에게 기권 패배 전달
-    const loserName = myColor === 'w' ? '백' : '흑';
+    const loserName  = myColor === 'w' ? '백' : '흑';
     const winnerName = myColor === 'w' ? '흑' : '백';
     netSend({ type: 'FORFEIT', loser: loserName, winner: winnerName });
-    // 잠깐 기다렸다가 이동 (메시지 전달 보장)
     setTimeout(() => {
+      cleanupRoom(NET_ROOM);
       if (netConn)  { try { netConn.close();  } catch(e) {} netConn = null; }
       if (netPeer)  { try { netPeer.destroy(); } catch(e) {} netPeer = null; }
       window.location.href = 'index.html';
     }, 300);
   } else {
+    cleanupRoom(NET_ROOM);
     if (netConn)  { try { netConn.close();  } catch(e) {} netConn = null; }
     if (netPeer)  { try { netPeer.destroy(); } catch(e) {} netPeer = null; }
     window.location.href = 'index.html';
