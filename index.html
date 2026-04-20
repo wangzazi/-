@@ -211,13 +211,13 @@ body{
    ▼▼▼ Firebase 설정 — 이 부분을 본인 값으로 교체하세요 ▼▼▼
 ============================================================ */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyD_bv9vLqcMDMZgGHNLS2A94INXqkO8XX8",
-  authDomain: "ooooomok-285e6.firebaseapp.com",
-  databaseURL: "https://ooooomok-285e6-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "ooooomok-285e6",
-  storageBucket: "ooooomok-285e6.firebasestorage.app",
+  apiKey:            "AIzaSyD_bv9vLqcMDMZgGHNLS2A94INXqkO8XX8",
+  authDomain:        "ooooomok-285e6.firebaseapp.com",
+  databaseURL:       "https://ooooomok-285e6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "ooooomok-285e6",
+  storageBucket:     "ooooomok-285e6.firebasestorage.app",
   messagingSenderId: "764275385569",
-  appId: "1:764275385569:web:44cecc18de9aef4d9a43a0"
+  appId:             "1:764275385569:web:44cecc18de9aef4d9a43a0",
 };
 /* ▲▲▲ Firebase 설정 끝 ▲▲▲ */
 
@@ -282,17 +282,28 @@ function startLocal() {
 ============================================================ */
 function startRoomsListener() {
   const cutoff = Date.now() - 30 * 60 * 1000;
-  roomsRef.orderByChild('createdAt').on('value', snap => {
+  // orderByChild 제거 → 인덱스 없이도 동작
+  roomsRef.on('value', snap => {
     const rooms = [];
     snap.forEach(child => {
       const r = child.val();
-      // 30분 이내, 시작 안 됨, 내가 만든 방 제외
       if (r && r.createdAt > cutoff && !r.started && child.key !== myRoomCode) {
         rooms.push({ code: child.key, ...r });
       }
     });
+    // JS에서 정렬
     rooms.sort((a,b) => b.createdAt - a.createdAt);
     showRoomList(rooms);
+  }, err => {
+    // 읽기 권한 없을 때 명확한 안내
+    console.error('방 목록 읽기 실패:', err);
+    setFbStatus('err', '읽기 권한 없음 — Firebase 보안 규칙 확인 필요');
+    document.getElementById('room-list').innerHTML = `
+      <div class="room-empty">
+        <div class="room-empty-icon">⚠</div>
+        <span style="color:var(--red)">Firebase 보안 규칙을 확인해주세요</span>
+        <span style="font-size:0.72rem;color:var(--muted)">.read 권한이 필요합니다</span>
+      </div>`;
   });
 }
 
@@ -337,13 +348,12 @@ function loadRooms() {
   if (!fbReady) return;
   const el = document.getElementById('room-list');
   el.innerHTML = '<div class="room-empty"><div class="spinner" style="margin:auto"></div></div>';
-  // 리스너가 자동으로 다시 렌더링
-  roomsRef.orderByChild('createdAt').once('value', snap => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  roomsRef.once('value', snap => {
     const rooms = [];
-    const cutoff = Date.now() - 30 * 60 * 1000;
     snap.forEach(child => {
       const r = child.val();
-      if (r && r.createdAt > cutoff && !r.started) {
+      if (r && r.createdAt > cutoff && !r.started && child.key !== myRoomCode) {
         rooms.push({ code: child.key, ...r });
       }
     });
