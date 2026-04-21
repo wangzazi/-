@@ -685,7 +685,7 @@ h1 {
     <div class="rules-grid">
       <div class="rule-item"><div class="rule-num">1</div><span>체크메이트 혹은 자신의 기물 5개를 가로·세로·대각선으로 연속 배치하면 승리.</span></div>
       <div class="rule-item"><div class="rule-num">2</div><span>각 진영은 첫 번째 턴에 반드시 킹을 배치해야 함.</span></div>
-      <div class="rule-item"><div class="rule-num">3</div><span>기물 배치는 중앙 6×6 구역(파란 점 표시)에만 가능. 이동은 자유.</span></div>
+      <div class="rule-item"><div class="rule-num">3</div><span>기물 배치는 행 3-6, 열 b-g 구역(파란 점 표시)에만 가능. 이동은 자유.</span></div>
       <div class="rule-item"><div class="rule-num">4</div><span>킹은 4*4 구역에만 배치 가능.</span></div>
       <div class="rule-item"><div class="rule-num">5</div><span>매 턴 손패에서 기물을 배치하거나, 보드 위 기물을 체스 규칙대로 이동.</span></div>
       <div class="rule-item"><div class="rule-num">6</div><span>폰이 상대 진영 끝 행에 도달하면 퀸·룩·비숍·나이트 중 하나로 프로모션.</span></div>
@@ -798,6 +798,38 @@ h1 {
   transition: opacity 0.15s;
 }
 #btn-chat-send:hover { opacity: 0.85; }
+
+/* ── 리매치 모달 ── */
+#rematch-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 250;
+  align-items: center; justify-content: center;
+}
+#rematch-overlay.show { display: flex; }
+#rematch-box {
+  background: var(--panel); border: 2px solid var(--gold);
+  border-radius: 18px; padding: 32px 36px; text-align: center;
+  max-width: 320px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  display: flex; flex-direction: column; gap: 14px;
+}
+#rematch-box h3 { font-size: 1.1rem; color: var(--gold); }
+#rematch-box p  { font-size: 0.85rem; color: var(--muted); }
+.rematch-btns { display: flex; gap: 10px; justify-content: center; }
+.btn-rematch-yes {
+  padding: 11px 24px; border-radius: 10px; border: none;
+  background: var(--gold); color: #000; font-size: 0.9rem;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: opacity 0.15s;
+}
+.btn-rematch-yes:hover { opacity: 0.85; }
+.btn-rematch-no {
+  padding: 11px 24px; border-radius: 10px;
+  border: 1.5px solid var(--border); background: var(--panel2);
+  color: var(--text); font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+}
+.btn-rematch-no:hover { opacity: 0.85; }
 </style>
 
 <!-- 게임 종료 오버레이 -->
@@ -806,7 +838,10 @@ h1 {
     <div class="end-emoji" id="end-emoji">🏆</div>
     <h2 id="end-title"></h2>
     <p  id="end-desc"></p>
-    <button id="restart-btn">재시작</button>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button id="restart-btn">재시작</button>
+      <button id="rematch-btn" style="display:none;padding:14px 36px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;" onclick="requestRematch()">🔄 리매치 요청</button>
+    </div>
   </div>
 </div>
 
@@ -826,6 +861,18 @@ h1 {
   <div class="chat-input-row">
     <input id="chat-input" placeholder="메시지 입력..." maxlength="100">
     <button id="btn-chat-send" onclick="sendChat()">전송</button>
+  </div>
+</div>
+
+<!-- 리매치 모달 -->
+<div id="rematch-overlay">
+  <div id="rematch-box">
+    <h3 id="rematch-title">리매치 요청</h3>
+    <p  id="rematch-desc">상대방이 리매치를 요청했습니다.</p>
+    <div class="rematch-btns">
+      <button class="btn-rematch-yes" onclick="answerRematch(true)">✓ 수락</button>
+      <button class="btn-rematch-no"  onclick="answerRematch(false)">✕ 거절</button>
+    </div>
   </div>
 </div>
 
@@ -910,6 +957,8 @@ let prevBoard, prevHand, prevTurn, prevLastMove;
 // 채팅 상태
 let chatVisible = false;
 let unreadCount = 0;
+// 리매치 상태
+let rematchPending = false;
 
 let rulesOpen = false;
 
@@ -933,8 +982,8 @@ const fileChar  = col => 'abcdefgh'[col];
 const rankNum   = row => 8 - row;
 
 function isPlacementZone(row, col) {
-  // 6×6 배치 구역: 가장자리(0행,7행,0열,7열) 제외한 전체
-  return row>=1 && row<=6 && col>=1 && col<=6;
+  // 행 3-6, 열 b-g 배치 구역
+  return row>=2 && row<=5 && col>=1 && col<=6;
 }
 function isKingPlacementZone(row, col) {
   // 킹 배치용 4×4 구역: 가운데 (row 2-5, col 2-5)
@@ -1217,6 +1266,9 @@ function endGame(emoji, title, desc) {
   document.getElementById('end-title').textContent=title;
   document.getElementById('end-desc').textContent=desc;
   document.getElementById('end-overlay').classList.add('show');
+  if (IS_ONLINE && netReady) {
+    document.getElementById('rematch-btn').style.display = 'block';
+  }
   netSend({ type: 'STATE', payload: serializeGameState() });
   // 게임 종료 시 Firebase에서 방 삭제 (호스트만)
   cleanupRoom(NET_ROOM);
@@ -1509,7 +1561,9 @@ function initGame() {
   consecCheckBy={w:0,b:0};
   totalCheckBy={w:0,b:0};
   prevBoard=null; prevHand=null; prevTurn=null; prevLastMove=null;
+  rematchPending = false;
   document.getElementById('history-list').innerHTML='';
+  renderAll();
   renderAll();
   if (IS_ONLINE) {
     const msg = netReady
@@ -1673,6 +1727,25 @@ function setupConn(conn, role) {
         // 상대방이 로비로 나감 → 내가 승리
         endGame('🏆', data.winner + ' 승리!', data.loser + ' 진영이 기권했습니다.');
         break;
+      case 'REMATCH_REQUEST':
+        showRematchModal();
+        break;
+      case 'REMATCH_RESPONSE':
+        if (data.accepted) {
+          // 리매치 수락 → 게임 재시작
+          document.getElementById('rematch-overlay').classList.remove('show');
+          document.getElementById('end-overlay').classList.remove('show');
+          initGame();
+          if (NET_ROLE === 'host') {
+            netSend({ type: 'STATE', payload: serializeGameState() });
+          }
+        } else {
+          // 리매치 거절
+          document.getElementById('rematch-overlay').classList.remove('show');
+          setStatus('리매치가 거절되었습니다.');
+          rematchPending = false;
+        }
+        break;
       case 'CHAT':
         addChatMessage(data.msg, 'theirs');
         break;
@@ -1826,6 +1899,37 @@ function updateUnreadBadge() {
 document.getElementById('chat-input').addEventListener('keypress', e => {
   if (e.key === 'Enter') sendChat();
 });
+
+/* ============================================================
+   리매치 기능
+============================================================ */
+function requestRematch() {
+  if (!IS_ONLINE || !netReady || rematchPending) return;
+  rematchPending = true;
+  netSend({ type: 'REMATCH_REQUEST' });
+  setStatus('리매치 요청 중...');
+}
+
+function showRematchModal() {
+  document.getElementById('rematch-title').textContent = '리매치 요청';
+  document.getElementById('rematch-desc').textContent = '상대방이 리매치를 요청했습니다.';
+  document.getElementById('rematch-overlay').classList.add('show');
+}
+
+function answerRematch(accepted) {
+  netSend({ type: 'REMATCH_RESPONSE', accepted });
+  document.getElementById('rematch-overlay').classList.remove('show');
+  if (accepted) {
+    // 수락 시 게임 재시작
+    document.getElementById('end-overlay').classList.remove('show');
+    initGame();
+    if (NET_ROLE === 'host') {
+      netSend({ type: 'STATE', payload: serializeGameState() });
+    }
+  } else {
+    setStatus('리매치를 거절했습니다.');
+  }
+}
 </script>
 </body>
 </html>
