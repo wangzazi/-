@@ -181,6 +181,35 @@ h1 {
 }
 .check-pip.filled { background: var(--red); border-color: var(--red); }
 
+/* 타이머 */
+.timer-box {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px;
+  background: rgba(255,69,58,0.15);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.timer-box.active {
+  display: flex;
+  background: rgba(255,69,58,0.25);
+  border: 1px solid rgba(255,69,58,0.5);
+}
+.timer-display {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--red);
+  font-family: 'Consolas', monospace;
+  letter-spacing: 2px;
+}
+.timer-display.warning {
+  animation: pulse-red 0.5s ease-in-out infinite;
+}
+@keyframes pulse-red { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }
+
 /* 손패 */
 .hand-label {
   font-size: 0.7rem;
@@ -636,6 +665,10 @@ h1 {
       </div>
       <div class="hand-label">보유 기물 (미배치)</div>
       <div class="hand-pieces" id="white-hand"></div>
+      <div class="timer-box" id="white-timer">
+        <span style="font-size:0.7rem">남은 시간</span>
+        <div class="timer-display" id="white-timer-display">∞</div>
+      </div>
     </div>
     <div id="status-box">게임 시작!</div>
     <div id="move-history">
@@ -673,6 +706,10 @@ h1 {
       </div>
       <div class="hand-label">보유 기물 (미배치)</div>
       <div class="hand-pieces" id="black-hand"></div>
+      <div class="timer-box" id="black-timer">
+        <span style="font-size:0.7rem">남은 시간</span>
+        <div class="timer-display" id="black-timer-display">∞</div>
+      </div>
     </div>
   </div>
 
@@ -920,7 +957,7 @@ const NET_ROOM   = _urlParams.get('room');   // 호스트의 Peer ID
 const IS_ONLINE  = !!NET_ROLE;
 
 /* 온라인 모드에서 내 진영 */
-let myColor = IS_ONLINE ? (NET_ROLE === 'host' ? 'w' : 'b') : null;
+let myColor = null;
 
 /* PeerJS 연결 객체 */
 let netConn   = null;   // DataConnection
@@ -959,6 +996,11 @@ let chatVisible = false;
 let unreadCount = 0;
 // 리매치 상태
 let rematchPending = false;
+// 타이머 상태
+let roomTimeLimit = 'unlimited'; // 방의 시간제한 (초 단위 숫자 또는 'unlimited')
+let timerInterval = null;
+let whiteTimeRemaining = 0; // 초
+let blackTimeRemaining = 0; // 초
 
 let rulesOpen = false;
 
@@ -1262,6 +1304,7 @@ function finishTurn() {
 
 function endGame(emoji, title, desc) {
   gameOver=true;
+  stopTimer();
   document.getElementById('end-emoji').textContent=emoji;
   document.getElementById('end-title').textContent=title;
   document.getElementById('end-desc').textContent=desc;
@@ -1489,6 +1532,12 @@ function renderCheckCounters() {
 function renderPlayerInfo() {
   document.getElementById('white-info').classList.toggle('active',turn==='w');
   document.getElementById('black-info').classList.toggle('active',turn==='b');
+  updateTimerDisplay();
+  // 턴이 바뀔 때마다 타이머 재시작
+  if (roomTimeLimit !== 'unlimited' && !gameOver) {
+    pauseTimer();
+    setTimeout(startTimer, 50);
+  }
 }
 
 function renderAll() {
@@ -1563,6 +1612,14 @@ function initGame() {
   prevBoard=null; prevHand=null; prevTurn=null; prevLastMove=null;
   rematchPending = false;
   document.getElementById('history-list').innerHTML='';
+  // 타이머 초기화
+  stopTimer();
+  resetTimers();
+  renderAll();
+  // 타이머 시작
+  if (roomTimeLimit !== 'unlimited') {
+    startTimer();
+  }
   renderAll();
   renderAll();
   if (IS_ONLINE) {
@@ -1634,7 +1691,6 @@ if (IS_ONLINE) {
 if (IS_ONLINE) {
   /* ── 온라인 UI 초기 설정 ── */
   document.getElementById('online-badge').classList.add('show');
-  document.getElementById('ob-color').textContent = myColor === 'w' ? '(백)' : '(흑)';
   document.getElementById('btn-chat').classList.add('show');
   // 온라인 모드: "새 게임" 버튼 숨김
   document.getElementById('restart-side-btn').style.display = 'none';
@@ -1694,17 +1750,43 @@ if (IS_ONLINE) {
 function setupConn(conn, role) {
   netConn = conn;
   conn.on('open', () => {
-    // HELLO 핸드셰이크
-    conn.send({ type: 'HELLO', role: role });
+    if (role === 'host') {
+      myColor = Math.random() < 0.5 ? 'w' : 'b';
+      // 호스트: Firebase에서 방의 timeLimit 읽기
+      const db = getFbDb();
+      if (db && NET_ROOM) {
+        db.ref('rooms/' + NET_ROOM).once('value', snap => {
+          const room = snap.val();
+          if (room && room.timeLimit) {
+            roomTimeLimit = room.timeLimit;
+          }
+          conn.send({ type: 'HELLO', role: role, color: myColor, timeLimit: roomTimeLimit });
+        }).catch(err => {
+          console.warn('Firebase 읽기 실패:', err);
+          conn.send({ type: 'HELLO', role: role, color: myColor, timeLimit: roomTimeLimit });
+        });
+      } else {
+        conn.send({ type: 'HELLO', role: role, color: myColor, timeLimit: roomTimeLimit });
+      }
+    } else {
+      conn.send({ type: 'HELLO', role: role });
+    }
   });
 
   conn.on('data', data => {
     if (!data || !data.type) return;
     if (data.type === 'HELLO') {
       // 상대방 HELLO 수신 → 연결 확립
+      if (NET_ROLE === 'guest') {
+        myColor = data.color === 'w' ? 'b' : 'w';
+        if (data.timeLimit) {
+          roomTimeLimit = data.timeLimit;
+        }
+      }
       netReady = true;
       document.getElementById('ob-dot').style.background = 'var(--green)';
       document.getElementById('ob-label').textContent = '연결됨';
+      document.getElementById('ob-color').textContent = myColor === 'w' ? '(백)' : '(흑)';
       setStatus(turn === myColor ? '내 턴 — 킹 배치' : '상대방 턴 대기 중...');
       // 호스트가 초기 상태 전송
       if (NET_ROLE === 'host') {
@@ -1899,6 +1981,83 @@ function updateUnreadBadge() {
 document.getElementById('chat-input').addEventListener('keypress', e => {
   if (e.key === 'Enter') sendChat();
 });
+
+/* ============================================================
+   타이머 기능
+============================================================ */
+function resetTimers() {
+  const timeLimit = parseInt(roomTimeLimit);
+  whiteTimeRemaining = timeLimit;
+  blackTimeRemaining = timeLimit;
+  updateTimerDisplay();
+}
+
+function startTimer() {
+  if (roomTimeLimit === 'unlimited' || gameOver) return;
+  stopTimer();
+  timerInterval = setInterval(() => {
+    if (turn === 'w') whiteTimeRemaining--;
+    else blackTimeRemaining--;
+    updateTimerDisplay();
+    
+    // 시간 초과 → 현재 플레이어 패배
+    const timeRemaining = turn === 'w' ? whiteTimeRemaining : blackTimeRemaining;
+    if (timeRemaining <= 0) {
+      stopTimer();
+      const loser = turn === 'w' ? '백' : '흑';
+      const winner = turn === 'w' ? '흑' : '백';
+      endGame('⏱', winner + ' 승리!', loser + ' 진영의 시간이 끝났습니다.');
+      if (IS_ONLINE) netSend({ type: 'STATE', payload: serializeGameState() });
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function updateTimerDisplay() {
+  const formatTime = (sec) => {
+    if (sec <= 0) return '시간초과';
+    if (sec > 3600) return '∞';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  };
+  
+  const whiteDisplay = document.getElementById('white-timer-display');
+  const blackDisplay = document.getElementById('black-timer-display');
+  const whiteTimer = document.getElementById('white-timer');
+  const blackTimer = document.getElementById('black-timer');
+  
+  whiteDisplay.textContent = roomTimeLimit === 'unlimited' ? '∞' : formatTime(whiteTimeRemaining);
+  blackDisplay.textContent = roomTimeLimit === 'unlimited' ? '∞' : formatTime(blackTimeRemaining);
+  
+  // 활성 타이머에만 warning 클래스 추가
+  if (roomTimeLimit !== 'unlimited') {
+    whiteTimer.classList.toggle('active', turn === 'w' && !gameOver);
+    blackTimer.classList.toggle('active', turn === 'b' && !gameOver);
+    if (turn === 'w' && whiteTimeRemaining <= 10) whiteDisplay.classList.add('warning');
+    else whiteDisplay.classList.remove('warning');
+    if (turn === 'b' && blackTimeRemaining <= 10) blackDisplay.classList.add('warning');
+    else blackDisplay.classList.remove('warning');
+  }
+}
+
+function pauseTimer() {
+  stopTimer();
+}
+
+function resumeTimer() {
+  if (roomTimeLimit !== 'unlimited' && !gameOver && !applyingRemote) {
+    startTimer();
+  }
+}
 
 /* ============================================================
    리매치 기능

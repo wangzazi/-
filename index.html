@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>오목체스 — 로비</title>
+<title>오목게이 — 로비</title>
 <style>
 :root {
   --bg:#2C2C2E; --panel:#3A3A3C; --panel2:#48484A;
@@ -77,6 +77,10 @@ body{
 .text-input:focus{outline:none;border-color:var(--gold);}
 .text-input::placeholder{color:var(--muted);}
 
+/* ── Select 스타일 ── */
+.select-input{width:100%;padding:11px 13px;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:0.9rem;font-family:inherit;transition:border-color 0.15s;appearance:none;cursor:pointer;}
+.select-input:focus{outline:none;border-color:var(--gold);}
+
 /* ── 상태 메시지 ── */
 .status-msg{font-size:0.82rem;text-align:center;min-height:18px;color:var(--muted);}
 .status-msg.error{color:var(--red);}
@@ -130,8 +134,8 @@ body{
 <body>
 
 <div class="logo">
-  <h1>오목체스</h1>
-  <p>OMOK-CHESS — 체스 × 오목 하이브리드</p>
+  <h1>오목게이</h1>
+  <p>OMOK GAY — 체스 × 오목 하이브리드</p>
 </div>
 
 <div class="tabs">
@@ -179,12 +183,23 @@ body{
     <div class="panel-card">
       <div class="panel-title">🏠 방 만들기</div>
       <div class="form-label">방 이름 (선택사항)</div>
-      <input class="text-input" id="room-name-input" maxlength="20" placeholder="방 제목 입력">
-      <button class="btn btn-gold" id="btn-create" onclick="createRoom()" disabled>방 만들기 (호스트 = 백)</button>
+      <input class="text-input" id="room-name-input" maxlength="20" placeholder="예: 고수만 오세요">
+      <div class="form-label">시간제한</div>
+      <select class="select-input" id="room-time-limit">
+        <option value="unlimited">제한 없음</option>
+        <option value="30">30초</option>
+        <option value="60">1분</option>
+        <option value="600">10분</option>
+        <option value="1800">30분</option>
+        <option value="3600">1시간</option>
+      </select>
+      <div class="form-label">비밀번호 (선택사항)</div>
+      <input class="text-input" id="room-password-input" maxlength="20" placeholder="방을 보호할 비밀번호">
+      <button class="btn btn-gold" id="btn-create" onclick="createRoom()" disabled>방 만들기</button>
       <div class="status-msg" id="create-msg"></div>
       <div class="divider"></div>
       <p style="font-size:0.78rem;color:var(--muted);line-height:1.6">
-        방을 만들면 목록에 공개됩니다.<br>상대방이 입장하면 자동으로 게임이 시작됩니다.<br>호스트는 <b style="color:var(--text)">백 진영</b>, 게스트는 <b style="color:var(--text)">흑 진영</b>입니다.
+        방을 만들면 목록에 공개됩니다.<br>상대방이 입장하면 자동으로 게임이 시작됩니다.
       </p>
     </div>
 
@@ -325,12 +340,15 @@ function showRoomList(rooms) {
     const age = Math.floor((Date.now() - r.createdAt) / 1000);
     const ageStr = age < 60 ? `${age}초 전` : `${Math.floor(age/60)}분 전`;
     const name = r.name ? escapeHtml(r.name) : '이름 없는 방';
+    const timeLimitDisplay = r.timeLimitDisplay || (r.timeLimit ? getTimeLimitDisplay(r.timeLimit) : '제한 없음');
+    const timeLimitText = (r.timeLimit && r.timeLimit !== 'unlimited') ? ` · ⏱ ${timeLimitDisplay}` : '';
+    const passwordIcon = r.password ? ' 🔒' : '';
     return `
       <div class="room-item" onclick="joinRoom('${r.code}')" title="${r.code} 방 입장">
         <div class="room-code">${r.code}</div>
         <div class="room-info">
-          <div class="room-name">${name}</div>
-          <div class="room-meta">호스트 대기 중 · ${ageStr}</div>
+          <div class="room-name">${name}${passwordIcon}</div>
+          <div class="room-meta">호스트 대기 중 · ${ageStr}${timeLimitText}</div>
         </div>
         <div class="room-status waiting">대기 중</div>
       </div>`;
@@ -363,6 +381,21 @@ function loadRooms() {
 }
 
 /* ============================================================
+   시간제한 표시 텍스트 변환
+============================================================ */
+function getTimeLimitDisplay(timeLimit) {
+  const limits = {
+    'unlimited': '제한 없음',
+    '30': '30초',
+    '60': '1분',
+    '600': '10분',
+    '1800': '30분',
+    '3600': '1시간'
+  };
+  return limits[timeLimit] || '제한 없음';
+}
+
+/* ============================================================
    6자리 코드 생성
 ============================================================ */
 function makeCode() {
@@ -382,6 +415,8 @@ async function createRoom() {
   }
 
   const name = document.getElementById('room-name-input').value.trim() || '이름 없는 방';
+  const timeLimit = document.getElementById('room-time-limit').value;
+  const password = document.getElementById('room-password-input').value.trim() || null;
   document.getElementById('btn-create').disabled = true;
 
   // 코드 충돌 없을 때까지 재시도
@@ -395,11 +430,15 @@ async function createRoom() {
   myRoomCode = code;
 
   // Firebase에 방 등록
-  await roomsRef.child(code).set({
+  const roomData = {
     name,
+    timeLimit,
+    timeLimitDisplay: getTimeLimitDisplay(timeLimit),
     createdAt: Date.now(),
     started: false,
-  });
+  };
+  if (password) roomData.password = password;
+  await roomsRef.child(code).set(roomData);
 
   // 대기 화면으로 전환
   document.getElementById('display-code').textContent = code;
@@ -459,6 +498,14 @@ async function enterAsGuest(code) {
     if (room.started) {
       setJoinMsg('❌ 이미 진행 중인 방입니다.', 'error');
       return;
+    }
+    // 비밀번호 확인
+    if (room.password) {
+      const pwd = prompt('비밀번호를 입력하세요:');
+      if (pwd !== room.password) {
+        setJoinMsg('❌ 비밀번호가 맞지 않습니다.', 'error');
+        return;
+      }
     }
     // 방 started = true 로 업데이트 (호스트에게 알림)
     await roomsRef.child(code).update({ started: true });
