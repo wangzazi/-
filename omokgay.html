@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>오목체스</title>
+<title>오목게이</title>
 <!-- Firebase SDK (방 정리용) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -607,8 +607,8 @@ h1 {
 <body>
 
 <header>
-  <h1>오목체스</h1>
-  <p class="header-sub">OMOK-CHESS — 체스 × 오목 하이브리드</p>
+  <h1>오목게이</h1>
+  <p class="header-sub">OMOK GAY — 체스 × 오목 하이브리드</p>
   <div class="header-btns">
     <button class="hdr-btn" id="btn-lobby" onclick="goLobby()">← 로비</button>
     <button class="hdr-btn primary" id="restart-side-btn">⟳ 새 게임</button>
@@ -714,6 +714,122 @@ h1 {
 <style>
 @keyframes obpulse{0%,100%{opacity:1}50%{opacity:0.3}}
 #online-badge.show{display:flex!important;}
+
+/* ── 채팅 버튼 ── */
+#btn-chat {
+  position: fixed; bottom: 24px; right: 24px; z-index: 60;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--blue); color: #fff; border: none;
+  font-size: 1.3rem; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(10,132,255,0.45);
+  display: none; align-items: center; justify-content: center;
+  transition: transform 0.15s, background 0.15s;
+}
+#btn-chat.show { display: flex; }
+#btn-chat:hover { transform: scale(1.08); background: #0070d8; }
+#btn-chat .chat-unread {
+  position: absolute; top: -2px; right: -2px;
+  background: var(--red); color: #fff;
+  border-radius: 50%; width: 18px; height: 18px;
+  font-size: 0.65rem; font-weight: 800;
+  display: none; align-items: center; justify-content: center;
+}
+#btn-chat .chat-unread.show { display: flex; }
+
+/* ── 채팅 패널 ── */
+#chat-panel {
+  position: fixed; bottom: 88px; right: 24px; z-index: 60;
+  width: 300px; max-width: calc(100vw - 48px);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; display: none; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+#chat-panel.show { display: flex; }
+.chat-header {
+  padding: 12px 16px; font-size: 0.82rem; font-weight: 700;
+  color: var(--muted); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chat-close {
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 1rem; padding: 0 4px;
+  transition: color 0.15s;
+}
+.chat-close:hover { color: var(--text); }
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 240px; min-height: 100px;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.chat-msg {
+  max-width: 85%; padding: 7px 11px;
+  border-radius: 12px; font-size: 0.82rem; line-height: 1.4; word-break: break-word;
+}
+.chat-msg.mine {
+  background: var(--blue); color: #fff;
+  align-self: flex-end; border-bottom-right-radius: 4px;
+}
+.chat-msg.theirs {
+  background: var(--panel2); color: var(--text);
+  align-self: flex-start; border-bottom-left-radius: 4px;
+}
+.chat-msg.system {
+  align-self: center; background: transparent;
+  color: var(--muted); font-size: 0.72rem; font-style: italic;
+}
+.chat-input-row {
+  display: flex; gap: 8px; padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+#chat-input {
+  flex: 1; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 0.85rem;
+  font-family: inherit; padding: 8px 10px; outline: none;
+  transition: border-color 0.15s;
+}
+#chat-input:focus { border-color: var(--blue); }
+#chat-input::placeholder { color: var(--muted); }
+#btn-chat-send {
+  background: var(--blue); color: #fff; border: none;
+  border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  font-size: 0.85rem; font-weight: 700; font-family: inherit;
+  transition: opacity 0.15s;
+}
+#btn-chat-send:hover { opacity: 0.85; }
+
+/* ── 리매치 모달 ── */
+#rematch-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 250;
+  align-items: center; justify-content: center;
+}
+#rematch-overlay.show { display: flex; }
+#rematch-box {
+  background: var(--panel); border: 2px solid var(--gold);
+  border-radius: 18px; padding: 32px 36px; text-align: center;
+  max-width: 320px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  display: flex; flex-direction: column; gap: 14px;
+}
+#rematch-box h3 { font-size: 1.1rem; color: var(--gold); }
+#rematch-box p  { font-size: 0.85rem; color: var(--muted); }
+.rematch-btns { display: flex; gap: 10px; justify-content: center; }
+.btn-rematch-yes {
+  padding: 11px 24px; border-radius: 10px; border: none;
+  background: var(--gold); color: #000; font-size: 0.9rem;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: opacity 0.15s;
+}
+.btn-rematch-yes:hover { opacity: 0.85; }
+.btn-rematch-no {
+  padding: 11px 24px; border-radius: 10px;
+  border: 1.5px solid var(--border); background: var(--panel2);
+  color: var(--text); font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+}
+.btn-rematch-no:hover { opacity: 0.85; }
 </style>
 
 <!-- 게임 종료 오버레이 -->
@@ -722,11 +838,118 @@ h1 {
     <div class="end-emoji" id="end-emoji">🏆</div>
     <h2 id="end-title"></h2>
     <p  id="end-desc"></p>
-    <button id="restart-btn">재시작</button>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button id="restart-btn">재시작</button>
+      <button id="rematch-btn" style="display:none;padding:14px 36px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;" onclick="requestRematch()">🔄 리매치 요청</button>
+    </div>
+  </div>
+</div>
+
+<!-- 채팅 플로팅 버튼 -->
+<button id="btn-chat" onclick="toggleChat()" title="채팅">
+  💬
+  <span class="chat-unread" id="chat-unread">0</span>
+</button>
+
+<!-- 채팅 패널 -->
+<div id="chat-panel">
+  <div class="chat-header">
+    <span>💬 채팅</span>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div id="chat-messages"></div>
+  <div class="chat-input-row">
+    <input id="chat-input" placeholder="메시지 입력..." maxlength="100">
+    <button id="btn-chat-send" onclick="sendChat()">전송</button>
+  </div>
+</div>
+
+<!-- 리매치 모달 -->
+<div id="rematch-overlay">
+  <div id="rematch-box">
+    <h3 id="rematch-title">리매치 요청</h3>
+    <p  id="rematch-desc">상대방이 리매치를 요청했습니다.</p>
+    <div class="rematch-btns">
+      <button class="btn-rematch-yes" onclick="answerRematch(true)">✓ 수락</button>
+      <button class="btn-rematch-no"  onclick="answerRematch(false)">✕ 거절</button>
+    </div>
   </div>
 </div>
 
 <script>
+/* ============================================================
+   🔊 사운드 시스템 — Web Audio API (외부 파일 없음)
+============================================================ */
+const SFX = (() => {
+  let ctx = null;
+  function ac() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function noise(c, len) {
+    const b = c.createBuffer(1, c.sampleRate * len, c.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  }
+  function go(fn) { try { fn(ac()); } catch(e) {} }
+
+  /* 수 두기 / 배치 — 나무 탁 */
+  function move() {
+    go(c => {
+      const t = c.currentTime;
+      const src = c.createBufferSource(); src.buffer = noise(c, 0.12);
+      const bp = c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=800; bp.Q.value=0.8;
+      const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800;
+      const g = c.createGain(); g.gain.setValueAtTime(0.55,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1);
+      src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(c.destination);
+      src.start(t); src.stop(t+0.12);
+    });
+  }
+
+  /* 기물 잡기 — 나무 탁탁 (두 번) */
+  function capture() {
+    go(c => {
+      [0, 0.06].forEach((delay, i) => {
+        const t = c.currentTime + delay;
+        const src = c.createBufferSource(); src.buffer = noise(c, 0.1);
+        const bp = c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=i?600:900; bp.Q.value=1.0;
+        const g = c.createGain(); g.gain.setValueAtTime(i?0.45:0.6,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
+        src.connect(bp); bp.connect(g); g.connect(c.destination);
+        src.start(t); src.stop(t+0.1);
+      });
+    });
+  }
+
+  /* 체크메이트 — 무거운 둔탁음 두 번 */
+  function checkmate() {
+    go(c => {
+      [0, 0.2].forEach(delay => {
+        const t = c.currentTime + delay;
+        const src = c.createBufferSource(); src.buffer = noise(c, 0.28);
+        const bp = c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=280; bp.Q.value=0.4;
+        const lp = c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=500;
+        const g = c.createGain(); g.gain.setValueAtTime(0.75,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+        src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(c.destination);
+        src.start(t); src.stop(t+0.28);
+      });
+    });
+  }
+
+  /* 채팅 수신 알림 — 가벼운 틱 */
+  function chat() {
+    go(c => {
+      const t = c.currentTime;
+      const osc = c.createOscillator(); osc.type='sine'; osc.frequency.value=880;
+      const g = c.createGain(); g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+      osc.connect(g); g.connect(c.destination); osc.start(t); osc.stop(t+0.12);
+    });
+  }
+
+  return { move, capture, checkmate, chat };
+})();
+
 /* ============================================================
    ▼▼▼ Firebase 설정 — index.html과 동일한 값을 여기도 넣어주세요 ▼▼▼
 ============================================================ */
@@ -740,6 +963,141 @@ const FIREBASE_CONFIG = {
   appId:             "1:764275385569:web:44cecc18de9aef4d9a43a0",
 };
 /* ▲▲▲ Firebase 설정 끝 ▲▲▲ */
+
+/* ============================================================
+   사운드 엔진 — Web Audio API (외부 파일 없음)
+   나무 두드리는 체스 풍 효과음
+============================================================ */
+const SFX = (() => {
+  let ctx = null;
+
+  /* AudioContext — 첫 사용자 인터랙션 후 생성 (브라우저 정책) */
+  function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  /* 기본 합성 함수 */
+  function play(type) {
+    try {
+      const c = getCtx();
+      switch(type) {
+        case 'move':       _woodThud(c, 180, 0.12, 0.06); break;  // 짧고 둔탁한 나무 소리
+        case 'place':      _woodThud(c, 140, 0.16, 0.09); break;  // 조금 더 묵직하게
+        case 'capture':    _woodCrack(c);                  break;  // 탁 — 기물 잡는 소리
+        case 'check':      _alert(c);                      break;  // 긴장감 있는 두 음
+        case 'checkmate':  _fanfare(c);                    break;  // 짧은 승리 팡파레
+        case 'win':        _victory(c);                    break;  // 풍성한 승리음
+        case 'btn':        _click(c);                      break;  // UI 클릭
+      }
+    } catch(e) { /* 소리 실패해도 게임에 영향 없음 */ }
+  }
+
+  /* ── 나무 두드리기 (이동/배치) ── */
+  function _woodThud(c, freq, gain, decay) {
+    const buf = c.createBuffer(1, c.sampleRate * 0.15, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      // 노이즈에 감쇠 적용
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (c.sampleRate * decay));
+    }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+
+    // 밴드패스 필터 — 나무 질감
+    const filter = c.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = 1.8;
+
+    const gainNode = c.createGain();
+    gainNode.gain.setValueAtTime(gain, c.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.14);
+
+    src.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(c.destination);
+    src.start();
+  }
+
+  /* ── 기물 잡기 — 탁 하는 충격음 ── */
+  function _woodCrack(c) {
+    // 두꺼운 노이즈 버스트
+    _woodThud(c, 120, 0.28, 0.04);
+    // 약간 높은 음 겹치기
+    setTimeout(() => _woodThud(c, 300, 0.12, 0.03), 18);
+  }
+
+  /* ── 체크 경고 — 긴장감 있는 두 음 ── */
+  function _alert(c) {
+    [0, 0.12].forEach((delay, i) => {
+      const osc = c.createOscillator();
+      const g   = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = i === 0 ? 520 : 660;
+      g.gain.setValueAtTime(0, c.currentTime + delay);
+      g.gain.linearRampToValueAtTime(0.18, c.currentTime + delay + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + 0.18);
+      osc.connect(g); g.connect(c.destination);
+      osc.start(c.currentTime + delay);
+      osc.stop(c.currentTime + delay + 0.2);
+    });
+  }
+
+  /* ── 체크메이트 — 묵직한 3음 하강 ── */
+  function _fanfare(c) {
+    const notes = [660, 550, 440];
+    notes.forEach((freq, i) => {
+      const delay = i * 0.15;
+      const osc = c.createOscillator();
+      const g   = c.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, c.currentTime + delay);
+      g.gain.linearRampToValueAtTime(0.22, c.currentTime + delay + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + 0.25);
+      osc.connect(g); g.connect(c.destination);
+      osc.start(c.currentTime + delay);
+      osc.stop(c.currentTime + delay + 0.28);
+    });
+  }
+
+  /* ── 승리 — 밝은 상승 아르페지오 ── */
+  function _victory(c) {
+    const notes = [440, 554, 659, 880];
+    notes.forEach((freq, i) => {
+      const delay = i * 0.11;
+      const osc = c.createOscillator();
+      const g   = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, c.currentTime + delay);
+      g.gain.linearRampToValueAtTime(0.20, c.currentTime + delay + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + 0.35);
+      osc.connect(g); g.connect(c.destination);
+      osc.start(c.currentTime + delay);
+      osc.stop(c.currentTime + delay + 0.38);
+    });
+    // 마지막 음 강조
+    setTimeout(() => _woodThud(c, 160, 0.14, 0.08), 400);
+  }
+
+  /* ── UI 버튼 클릭 ── */
+  function _click(c) {
+    const osc = c.createOscillator();
+    const g   = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, c.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, c.currentTime + 0.06);
+    g.gain.setValueAtTime(0.1, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.07);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(); osc.stop(c.currentTime + 0.08);
+  }
+
+  return { play };
+})();
 
 /* Firebase 초기화 (방 정리 전용) */
 let _fbDb = null;
@@ -1003,6 +1361,7 @@ function doMove(fromRow, fromCol, toRow, toCol) {
   }
   board=nb;
   lastMove={fromRow,fromCol,toRow,toCol};
+  if (captured) SFX.capture(); else SFX.move();
   finishTurn();
 }
 
@@ -1018,6 +1377,7 @@ function doPlace(type, row, col) {
   hand[turn][type]--;
   board=nb;
   lastMove=null;
+  SFX.move();
   addHistory(turn, `P ${PIECE_NAMES[type]} → ${fileChar(col)}${rankNum(row)}`);
   finishTurn();
 }
@@ -1057,6 +1417,7 @@ function finishTurn() {
     consecCheckBy[turn]++;
     totalCheckBy[turn]++;
     consecCheckBy[opp] = 0;
+    // 체크 소리 없음 (요청사항)
   } else {
     consecCheckBy[turn] = 0;
   }
@@ -1089,6 +1450,9 @@ function finishTurn() {
   selectedCell=null;
   highlights=[];
 
+  // 체크 소리 (체크메이트는 endGame에서 별도 처리)
+  // 체크 소리는 finishTurn에서 처리
+
   const kingNeeded = findKing(board,turn)===null;
   let statusMsg;
   if (IS_ONLINE) {
@@ -1113,8 +1477,11 @@ function endGame(emoji, title, desc) {
   document.getElementById('end-desc').textContent=desc;
   document.getElementById('end-overlay').classList.add('show');
   netSend({ type: 'STATE', payload: serializeGameState() });
-  // 게임 종료 시 Firebase에서 방 삭제 (호스트만)
   cleanupRoom(NET_ROOM);
+  if (desc === '체크메이트' || desc.includes('연속 체크') || desc.includes('기권')) SFX.checkmate();
+  // 온라인이면 리매치 버튼 표시
+  const rematchBtn = document.getElementById('rematch-btn');
+  if (rematchBtn) rematchBtn.style.display = IS_ONLINE && netReady ? 'block' : 'none';
   renderAll();
 }
 
@@ -1136,6 +1503,7 @@ function showPromoModal(color) {
     btn.appendChild(icon);
     btn.appendChild(label);
     btn.onclick=()=>{
+      SFX.move();
       board[pendingPromo.row][pendingPromo.col].type=type;
       pendingPromo=null;
       document.getElementById('modal-overlay').classList.remove('show');
@@ -1291,7 +1659,7 @@ function renderHand(color) {
       span.appendChild(badge);
     }
     span.title=PIECE_NAMES[type];
-    span.addEventListener('click',()=>onHandClick(color,type));
+    span.addEventListener('click',()=>{ onHandClick(color,type); });
     el.appendChild(span);
   });
 }
@@ -1420,20 +1788,24 @@ function initGame() {
    이벤트 연결
 ============================================================ */
 document.getElementById('restart-btn').addEventListener('click',()=>{
+  // 버튼 소리 없음
   document.getElementById('end-overlay').classList.remove('show');
   if (IS_ONLINE) netSend({ type: 'RESTART' });
   initGame();
 });
 document.getElementById('restart-side-btn').addEventListener('click',()=>{
+  // 버튼 소리 없음
   document.getElementById('end-overlay').classList.remove('show');
   if (IS_ONLINE) netSend({ type: 'RESTART' });
   initGame();
 });
 document.getElementById('toggle-rules-btn').addEventListener('click',()=>{
+  // 버튼 소리 없음
   rulesOpen=!rulesOpen;
   document.getElementById('rules-box').classList.toggle('open',rulesOpen);
   document.getElementById('toggle-rules-btn').textContent=rulesOpen?'규칙 숨기기':'규칙 보기';
 });
+// 로비 버튼 소리 없음
 
 /* ============================================================
    로비로 돌아가기
@@ -1476,8 +1848,9 @@ if (IS_ONLINE) {
   /* ── 온라인 UI 초기 설정 ── */
   document.getElementById('online-badge').classList.add('show');
   document.getElementById('ob-color').textContent = myColor === 'w' ? '(백)' : '(흑)';
-  // 온라인 모드: "새 게임" 버튼 숨김
   document.getElementById('restart-side-btn').style.display = 'none';
+  // 채팅 버튼 표시
+  document.getElementById('btn-chat').classList.add('show');
   setStatus('연결 중...');
 
   /* ── 연결 타임아웃 (30초) ── */
@@ -1559,13 +1932,19 @@ function setupConn(conn, role) {
       case 'RESTART':
         document.getElementById('end-overlay').classList.remove('show');
         initGame();
-        if (NET_ROLE === 'host') {
-          netSend({ type: 'STATE', payload: serializeGameState() });
-        }
+        if (NET_ROLE === 'host') netSend({ type: 'STATE', payload: serializeGameState() });
         break;
       case 'FORFEIT':
-        // 상대방이 로비로 나감 → 내가 승리
         endGame('🏆', data.winner + ' 승리!', data.loser + ' 진영이 기권했습니다.');
+        break;
+      case 'CHAT':
+        recvChat(data.msg);
+        break;
+      case 'REMATCH_REQ':
+        showRematchRequest();
+        break;
+      case 'REMATCH_ANS':
+        handleRematchAnswer(data.accept);
         break;
     }
   });
@@ -1620,8 +1999,121 @@ function serializeGameState() {
 }
 
 /* ============================================================
-   원격 상태 적용 (상대방 행동을 내 화면에 반영)
+   💬 채팅 시스템
 ============================================================ */
+let chatOpen    = false;
+let unreadCount = 0;
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chat-panel').classList.toggle('show', chatOpen);
+  if (chatOpen) {
+    unreadCount = 0;
+    updateUnread();
+    document.getElementById('chat-input').focus();
+    // 스크롤 맨 아래로
+    const msgs = document.getElementById('chat-messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg || !netReady) return;
+  input.value = '';
+  // 내 메시지 화면에 추가
+  addChatMsg(msg, 'mine');
+  // 상대에게 전송
+  netSend({ type: 'CHAT', msg });
+}
+
+function recvChat(msg) {
+  SFX.chat();
+  addChatMsg(msg, 'theirs');
+  if (!chatOpen) {
+    unreadCount++;
+    updateUnread();
+  }
+}
+
+function addChatMsg(msg, cls) {
+  const el = document.createElement('div');
+  el.className = 'chat-msg ' + cls;
+  // XSS 방지
+  el.textContent = msg;
+  const container = document.getElementById('chat-messages');
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addChatSystem(msg) {
+  const el = document.createElement('div');
+  el.className = 'chat-msg system';
+  el.textContent = msg;
+  const container = document.getElementById('chat-messages');
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+}
+
+function updateUnread() {
+  const badge = document.getElementById('chat-unread');
+  badge.textContent = unreadCount;
+  badge.classList.toggle('show', unreadCount > 0);
+}
+
+// Enter 키로 전송
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendChat();
+});
+
+/* ============================================================
+   🔄 리매치 시스템
+============================================================ */
+let rematchRequested = false;  // 내가 요청 중인지
+
+function requestRematch() {
+  if (!netReady) return;
+  rematchRequested = true;
+  netSend({ type: 'REMATCH_REQ' });
+  // end-overlay에 대기 메시지 표시
+  document.getElementById('end-desc').textContent = '리매치 요청 중... 상대방의 응답을 기다립니다.';
+}
+
+function showRematchRequest() {
+  document.getElementById('rematch-title').textContent = '리매치 요청';
+  document.getElementById('rematch-desc').textContent  = '상대방이 리매치를 요청했습니다.';
+  document.getElementById('rematch-overlay').classList.add('show');
+}
+
+function answerRematch(accept) {
+  document.getElementById('rematch-overlay').classList.remove('show');
+  netSend({ type: 'REMATCH_ANS', accept });
+  if (accept) {
+    // 수락 — 게임 재시작
+    document.getElementById('end-overlay').classList.remove('show');
+    rematchRequested = false;
+    initGame();
+    if (NET_ROLE === 'host') netSend({ type: 'STATE', payload: serializeGameState() });
+    addChatSystem('리매치 시작!');
+  } else {
+    addChatSystem('리매치를 거절했습니다.');
+  }
+}
+
+function handleRematchAnswer(accept) {
+  rematchRequested = false;
+  if (accept) {
+    document.getElementById('end-overlay').classList.remove('show');
+    initGame();
+    if (NET_ROLE === 'host') netSend({ type: 'STATE', payload: serializeGameState() });
+    addChatSystem('리매치 시작!');
+  } else {
+    document.getElementById('end-desc').textContent = '상대방이 리매치를 거절했습니다.';
+  }
+}
+
+
 function applyRemoteGameState(s) {
   if (applyingRemote) return;
   applyingRemote = true;
