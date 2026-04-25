@@ -1331,16 +1331,22 @@ function endGame(emoji, title, desc) {
     document.getElementById('rematch-btn').style.display = 'block';
     document.getElementById('exit-btn').style.display    = 'block';
   } else if (IS_ONLINE) {
-    // 연결이 끊긴 경우 로비 버튼만
     document.getElementById('exit-btn').style.display    = 'block';
   }
   netSend({ type: 'STATE', payload: serializeGameState() });
-  // Firebase: 게임 종료 상태 업로드 후 방 삭제
+  // Firebase: 종료 상태 업로드
   if (IS_ONLINE && NET_ROLE === 'host') {
-    pushStateToFirebase();
-    setTimeout(() => cleanupRoom(NET_ROOM), 5000); // 5초 후 삭제 (관전자 최종 상태 볼 시간)
-  } else {
-    cleanupRoom(NET_ROOM);
+    const db = getFbDb();
+    if (db && NET_ROOM) {
+      // gameActive:false 즉시 → 관전 목록에서 바로 제거
+      db.ref('rooms/' + NET_ROOM).update({
+        gameActive: false,
+        gameState:  JSON.stringify(serializeGameState()),
+        updatedAt:  Date.now(),
+      }).catch(() => {});
+    }
+    // 5초 후 방 완전 삭제
+    setTimeout(() => cleanupRoom(NET_ROOM), 5000);
   }
   renderAll();
 }
@@ -1769,7 +1775,10 @@ if (IS_SPECTATOR && NET_ROOM) {
 
     // 게임 상태 실시간 구독
     roomRef.child('gameState').on('value', snap => {
-      if (!snap.val()) return;
+      if (!snap.val()) {
+        setStatus('👁 게임 시작 대기 중... (아직 수가 없습니다)');
+        return;
+      }
       try {
         const state = JSON.parse(snap.val());
         applyRemoteGameState(state);
@@ -1942,9 +1951,10 @@ function setupConn(conn, role) {
       document.getElementById('ob-label').textContent = '연결됨';
       document.getElementById('ob-color').textContent = myColor === 'w' ? '(백)' : '(흑)';
       setStatus(turn === myColor ? '내 턴 — 킹 배치' : '상대방 턴 대기 중...');
-      // 호스트가 초기 상태 전송
+      // 호스트: 초기 상태 전송 + Firebase 업로드 (관전자가 바로 볼 수 있도록)
       if (NET_ROLE === 'host') {
         netSend({ type: 'STATE', payload: serializeGameState() });
+        pushStateToFirebase();
       }
       return;
     }
