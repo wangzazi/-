@@ -528,11 +528,13 @@ async function createRoom() {
   roomWatcher = roomsRef.child(code).child('started').on('value', snap => {
     if (snap.val() === true) {
       clearTimeout(autoDelete);
-      // 방 정리는 게임 종료 후 omokgay.html에서 처리
       document.getElementById('wait-msg').textContent = '게스트 입장! 게임 시작...';
-      setTimeout(() => {
-        window.location.href = `omokgay.html?role=host&room=${code}&time=${timeLimit}`;
-      }, 400);
+      // 이동 전에 gameActive:true 먼저 올려서 관전 목록에 바로 뜨게 함
+      roomsRef.child(code).update({ gameActive: true }).finally(() => {
+        setTimeout(() => {
+          window.location.href = `omokgay.html?role=host&room=${code}&time=${timeLimit}`;
+        }, 400);
+      });
     }
   });
 }
