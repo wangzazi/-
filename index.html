@@ -336,8 +336,8 @@ function startAI() {
    방 목록 실시간 리스너
 ============================================================ */
 function startRoomsListener() {
-  const cutoff = Date.now() - 30 * 60 * 1000;
   roomsRef.on('value', snap => {
+    const cutoff = Date.now() - 30 * 60 * 1000; // 콜백마다 최신 기준
     const waiting = [], playing = [];
     snap.forEach(child => {
       const r = child.val();
