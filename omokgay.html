@@ -1209,6 +1209,7 @@ function doMove(fromRow, fromCol, toRow, toCol) {
   }
   board=nb;
   lastMove={fromRow,fromCol,toRow,toCol};
+  if (IS_ONLINE && NET_ROLE === 'host') pushStateToFirebase();
   finishTurn();
 }
 
@@ -1225,6 +1226,7 @@ function doPlace(type, row, col) {
   board=nb;
   lastMove=null;
   addHistory(turn, `P ${PIECE_NAMES[type]} → ${fileChar(col)}${rankNum(row)}`);
+  if (IS_ONLINE && NET_ROLE === 'host') pushStateToFirebase();
   finishTurn();
 }
 
@@ -2141,7 +2143,9 @@ function boardScore(board, hand, color) {
 
 /* ── 모든 가능한 액션 수집 ── */
 function allActions(board, hand, color) {
+  const opp = color === 'w' ? 'b' : 'w';
   const actions = [];
+
   // 이동
   for (let r=0; r<8; r++) for (let c=0; c<8; c++) {
     if (!board[r][c] || board[r][c].color !== color) continue;
@@ -2149,10 +2153,10 @@ function allActions(board, hand, color) {
       actions.push({ kind:'move', fromRow:r, fromCol:c, toRow:tr, toCol:tc });
     }
   }
+
   // 배치
   const kingOnBoard = !!findKing(board, color);
   if (!kingOnBoard && hand[color]['K'] > 0) {
-    // 킹 없으면 킹만 배치 가능
     for (const {row, col} of legalPlacements(board, 'K', color)) {
       actions.push({ kind:'place', type:'K', row, col });
     }
@@ -2164,7 +2168,23 @@ function allActions(board, hand, color) {
       }
     }
   }
-  return actions;
+
+  // AI 자멸 방지: 연속 체크 한도 초과 수 및 자기 킹 위험 수 제거
+  return actions.filter(a => {
+    const { nb } = applyAction(board, hand, color, a);
+    // 자기 킹이 체크에 노출되면 제외 (오목 완성 제외)
+    if (isInCheck(nb, color) && !checkOmok(nb, color)) return false;
+    // 상대 킹에게 체크를 거는 수 — 연속 체크 초과 여부 확인
+    if (isInCheck(nb, opp)) {
+      const curConsec = consecCheckBy[color] || 0;
+      const curTotal  = totalCheckBy[color]  || 0;
+      // 3연속 체크 자멸 방지
+      if (curConsec + 1 >= MAX_CONSEC_CHECK) return false;
+      // 5회 총 체크 한도 방지
+      if (curTotal + 1 > MAX_TOTAL_CHECK) return false;
+    }
+    return true;
+  });
 }
 
 /* ── 액션 적용 후 보드 반환 ── */
