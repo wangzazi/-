@@ -7,6 +7,7 @@
 <!-- Firebase SDK (방 정리용) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 /* ── 기본 리셋 & 변수 ── */
@@ -876,6 +877,7 @@ h1 {
     <div class="end-emoji" id="end-emoji">🏆</div>
     <h2 id="end-title"></h2>
     <p  id="end-desc"></p>
+    <p  id="end-rating-delta" style="display:none;font-size:1.05rem;font-weight:800;margin:-16px 0 12px;"></p>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
       <button id="restart-btn">재시작</button>
       <button id="rematch-btn" style="display:none;padding:14px 36px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;" onclick="requestRematch()">🔄 리매치 요청</button>
@@ -931,8 +933,9 @@ const FIREBASE_CONFIG = {
 /* ▲▲▲ Firebase 설정 끝 ▲▲▲ */
 
 const _urlParams     = new URLSearchParams(window.location.search);
-const NET_ROLE       = _urlParams.get('role');   // 'host'|'guest'|'spectator'|null
+const NET_ROLE       = _urlParams.get('role');
 const NET_ROOM       = _urlParams.get('room');
+const MY_UID         = _urlParams.get('uid') || null;
 const IS_ONLINE      = NET_ROLE === 'host' || NET_ROLE === 'guest';
 const IS_SPECTATOR   = NET_ROLE === 'spectator';
 const IS_AI          = _urlParams.get('mode') === 'ai';
@@ -1313,8 +1316,34 @@ function endGame(emoji, title, desc) {
     document.getElementById('exit-btn').style.display    = 'block';
   }
   netSend({ type: 'STATE', payload: serializeGameState() });
-  // Firebase: 종료 즉시 방 삭제 (호스트/게스트 둘 다)
   cleanupRoom(NET_ROOM);
+
+  // 레이팅 업데이트 (온라인 대전만)
+  if (IS_ONLINE && MY_UID && _gameRatingInfo) {
+    // 승패 판정: myColor가 승리한 쪽인지 판단
+    const iWin  = desc.includes(myColor === 'w' ? '백' : '흑') &&
+                  (emoji === '🏆' || desc.includes('승리'));
+    const iLose = desc.includes(myColor === 'w' ? '흑' : '백') &&
+                  (emoji === '🏆' || desc.includes('승리'));
+    const isDraw = emoji === '🤝';
+    const myScore = iWin ? 1 : isDraw ? 0.5 : iLose ? 0 : null;
+
+    if (myScore !== null) {
+      updateRating(myScore).then(() => {
+        // 레이팅 변동 표시
+        if (ratingDelta !== null) {
+          const sign  = ratingDelta >= 0 ? '+' : '';
+          const color = ratingDelta >= 0 ? '#30D158' : '#FF453A';
+          const rEl   = document.getElementById('end-rating-delta');
+          if (rEl) {
+            rEl.textContent = `레이팅 ${sign}${ratingDelta} → ${_gameRatingInfo.myElo + ratingDelta}`;
+            rEl.style.color = color;
+            rEl.style.display = 'block';
+          }
+        }
+      });
+    }
+  }
   renderAll();
 }
 
@@ -1929,7 +1958,8 @@ function setupConn(conn, role) {
       document.getElementById('ob-label').textContent = '연결됨';
       document.getElementById('ob-color').textContent = myColor === 'w' ? '(백)' : '(흑)';
       setStatus(turn === myColor ? '내 턴 — 킹 배치' : '상대방 턴 대기 중...');
-      // 호스트: 초기 상태 전송 + Firebase 업로드 (관전자가 바로 볼 수 있도록)
+      // 레이팅 정보 캐시 (방 삭제 전에 미리)
+      cacheRatingInfo();
       if (NET_ROLE === 'host') {
         netSend({ type: 'STATE', payload: serializeGameState() });
         pushStateToFirebase();
@@ -2034,15 +2064,79 @@ var _fbDbInst = null;
 function getFbDb() {
   if (_fbDbInst) return _fbDbInst;
   try {
-    // FIREBASE_CONFIG가 실제 설정값인지 확인
     if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.includes('여기에')) return null;
-    // 이미 초기화된 앱이 있으면 재사용, 없으면 초기화
     const app = firebase.apps.length > 0 ? firebase.apps[0] : firebase.initializeApp(FIREBASE_CONFIG);
     _fbDbInst = firebase.database(app);
-  } catch(e) {
-    console.warn('Firebase DB 초기화 실패:', e);
-  }
+  } catch(e) { console.warn('Firebase DB 초기화 실패:', e); }
   return _fbDbInst;
+}
+
+/* ============================================================
+   🏆 ELO 레이팅 시스템
+============================================================ */
+const ELO_K       = 32;
+const ELO_DEFAULT = 1200;
+let   ratingDelta = null;
+let _gameRatingInfo = null;
+
+function eloExpected(myElo, oppElo) {
+  return 1 / (1 + Math.pow(10, (oppElo - myElo) / 400));
+}
+function eloNewRating(myElo, oppElo, score) {
+  return Math.round(myElo + ELO_K * (score - eloExpected(myElo, oppElo)));
+}
+
+/* 연결 확립 시 레이팅 정보 캐시 (방 삭제 전에 미리) */
+async function cacheRatingInfo() {
+  if (!IS_ONLINE || !NET_ROOM || !MY_UID) return;
+  const db = getFbDb();
+  if (!db) return;
+  try {
+    const snap = await db.ref('rooms/' + NET_ROOM).once('value');
+    if (!snap.exists()) return;
+    const r = snap.val();
+    const isHost = NET_ROLE === 'host';
+    _gameRatingInfo = {
+      myElo:  isHost ? (r.hostElo  || ELO_DEFAULT) : (r.guestElo || ELO_DEFAULT),
+      oppElo: isHost ? (r.guestElo || ELO_DEFAULT) : (r.hostElo  || ELO_DEFAULT),
+    };
+    console.log('[레이팅] 캐시:', _gameRatingInfo);
+  } catch(e) { console.warn('레이팅 캐시 오류:', e); }
+}
+
+/* 게임 종료 후 레이팅 업데이트 */
+async function updateRating(myScore) {
+  // myScore: 1=승, 0.5=무, 0=패
+  if (!IS_ONLINE || !MY_UID || !_gameRatingInfo) return;
+  const db = getFbDb();
+  if (!db) return;
+  try {
+    const { myElo, oppElo } = _gameRatingInfo;
+    const newElo = eloNewRating(myElo, oppElo, myScore);
+    ratingDelta  = newElo - myElo;
+
+    const myRef  = db.ref('users/' + MY_UID);
+    const mySnap = await myRef.once('value');
+    const myData = mySnap.val() || {};
+    const updated = {
+      ...myData,
+      uid:    MY_UID,
+      elo:    newElo,
+      wins:   (myData.wins   || 0) + (myScore === 1   ? 1 : 0),
+      losses: (myData.losses || 0) + (myScore === 0   ? 1 : 0),
+      draws:  (myData.draws  || 0) + (myScore === 0.5 ? 1 : 0),
+      updatedAt: Date.now(),
+    };
+    await myRef.update(updated);
+    db.ref('leaderboard/' + MY_UID).update({
+      nickname:  updated.nickname || '익명',
+      elo:       newElo,
+      wins:      updated.wins,
+      losses:    updated.losses,
+      draws:     updated.draws,
+      updatedAt: Date.now(),
+    });
+  } catch(e) { console.warn('레이팅 업데이트 오류:', e); }
 }
 
 /* 호스트가 방을 Firebase에서 삭제 */
