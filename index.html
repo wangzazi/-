@@ -341,7 +341,7 @@ function startRoomsListener() {
     const waiting = [], playing = [];
     snap.forEach(child => {
       const r = child.val();
-      if (!r || r.createdAt <= cutoff) return;
+      if (!r || !r.createdAt || r.createdAt <= cutoff) return;
       if (child.key === myRoomCode) return;
       if (!r.started) {
         waiting.push({ code: child.key, ...r });
@@ -381,8 +381,8 @@ function showRoomList(waiting, playing) {
   }
 
   const renderRoom = (r, isPlaying) => {
-    const age = Math.floor((Date.now() - r.createdAt) / 1000);
-    const ageStr = age < 60 ? `${age}초 전` : `${Math.floor(age/60)}분 전`;
+    const age = r.createdAt ? Math.floor((Date.now() - r.createdAt) / 1000) : null;
+    const ageStr = age === null ? '' : age < 60 ? `${age}초 전` : `${Math.floor(age/60)}분 전`;
     const name = r.name ? escapeHtml(r.name) : '이름 없는 방';
     const timeLimitDisplay = r.timeLimitDisplay || (r.timeLimit ? getTimeLimitDisplay(r.timeLimit) : '제한 없음');
     const timeLimitText = (r.timeLimit && r.timeLimit !== 'unlimited') ? ` · ⏱ ${timeLimitDisplay}` : '';
@@ -447,7 +447,7 @@ function loadRooms() {
     const waiting = [], playing = [];
     snap.forEach(child => {
       const r = child.val();
-      if (!r || r.createdAt <= cutoff) return;
+      if (!r || !r.createdAt || r.createdAt <= cutoff) return;
       if (child.key === myRoomCode) return;
       if (!r.started) waiting.push({ code: child.key, ...r });
       else if (r.gameActive) playing.push({ code: child.key, ...r });
