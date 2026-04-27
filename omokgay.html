@@ -944,15 +944,6 @@ const AI_DIFF        = _urlParams.get('difficulty') || 'easy';
 
 // 커스텀 기물 설정 (create-room.html에서 전달)
 // ?hand=K1Q1R2B2N2P8SH1SN0JP0 형태
-const _handParam = _urlParams.get('hand');
-if (_handParam) {
-  const m = _handParam.matchAll(/([A-Z]+)(\d+)/g);
-  for (const [,type,cnt] of m) {
-    if (INIT_HAND_DEFAULT.hasOwnProperty(type) || ['SH','SN','JP'].includes(type)) {
-      INIT_HAND[type] = parseInt(cnt);
-    }
-  }
-}
 
 /* 온라인 모드에서 내 진영 */
 let myColor = null;
@@ -977,6 +968,18 @@ const PIECE_SYMBOLS = {
 };
 const INIT_HAND_DEFAULT = { K:1, Q:1, R:2, B:2, N:2, P:8 };
 let   INIT_HAND         = { ...INIT_HAND_DEFAULT };
+
+// URL ?hand= 파라미터로 기물 설정 덮어쓰기 (create-room.html에서 전달)
+(function() {
+  const hp = _urlParams.get('hand');
+  if (!hp) return;
+  for (const [, type, cnt] of hp.matchAll(/([A-Z]+)(\d+)/g)) {
+    if (Object.prototype.hasOwnProperty.call(INIT_HAND_DEFAULT, type)
+        || ['SH','SN','JP'].includes(type)) {
+      INIT_HAND[type] = parseInt(cnt, 10);
+    }
+  }
+})();
 const PIECE_NAMES  = { K:'킹', Q:'퀸', R:'룩', B:'비숍', N:'나이트', P:'폰',
                         SH:'방패병', SN:'저격수', JP:'점퍼' };
 const PROMO_PIECES = ['Q','R','B','N'];
@@ -1739,16 +1742,10 @@ function initGame() {
   prevBoard=null; prevHand=null; prevTurn=null; prevLastMove=null;
   rematchPending = false;
   document.getElementById('history-list').innerHTML='';
-  // 타이머 초기화
   stopTimer();
   resetTimers();
   renderAll();
-  // 타이머 시작
-  if (roomTimeLimit !== 'unlimited') {
-    startTimer();
-  }
-  renderAll();
-  renderAll();
+  if (roomTimeLimit !== 'unlimited') startTimer();
   if (IS_ONLINE) {
     const msg = netReady
       ? (turn === myColor ? '내 턴 — 킹 배치' : '상대방 턴 대기 중...')
