@@ -981,7 +981,7 @@ let   INIT_HAND         = { ...INIT_HAND_DEFAULT };
   }
 })();
 const PIECE_NAMES  = { K:'킹', Q:'퀸', R:'룩', B:'비숍', N:'나이트', P:'폰',
-                        SH:'방패병', SN:'저격수', JP:'점퍼' };
+                        SH:'방패병', SN:'저격수', JP:'캥거루' };
 const PROMO_PIECES = ['Q','R','B','N'];
 const MAX_CONSEC_CHECK = 3; // 이 횟수 연속 체크 시 체크 건 쪽 패배
 const MAX_TOTAL_CHECK  = 5; // 한 판 동안 한 진영이 걸 수 있는 체크 최대 횟수
@@ -1122,7 +1122,7 @@ function rawMoves(board, row, col, attackOnly=false) {
       break;
     }
     case 'JP': {
-      // 점퍼: 상하좌우 1칸 건너뛴 2번째 칸 이동/공격
+      // 캥거루: 상하좌우 1칸 건너뛴 2번째 칸 이동/공격
       [[-2,0],[2,0],[0,-2],[0,2]].forEach(([dr,dc]) => {
         const nr = row+dr, nc = col+dc;
         if (!inBounds(nr,nc)) return;
