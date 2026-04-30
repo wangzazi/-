@@ -318,47 +318,9 @@ let roomsRef    = null;   // Firebase rooms 참조
 let roomWatcher = null;   // 내 방 감시 리스너
 
 /* ============================================================
-   Firebase 초기화
+   Firebase 초기화 — 아래 레이팅 시스템 섹션에서 통합 처리
 ============================================================ */
-let listenerAttached = false;  // 리스너 중복 방지 플래그
-
-function initFirebase() {
-  try {
-    if (FIREBASE_CONFIG.apiKey.includes('여기에')) {
-      setFbStatus('err', 'Firebase 미설정');
-      showRoomList([]);
-      document.getElementById('btn-create').disabled = false;
-      document.getElementById('create-msg').textContent = '⚠ Firebase 미설정 — 코드 직접 입력 방식으로만 사용 가능합니다.';
-      document.getElementById('create-msg').className = 'status-msg error';
-      return;
-    }
-    if (firebase.apps.length === 0) {
-      firebase.initializeApp(FIREBASE_CONFIG);
-    }
-    db = firebase.database();
-    roomsRef = db.ref('rooms');
-
-    // 연결 상태 감시
-    db.ref('.info/connected').on('value', snap => {
-      if (snap.val() === true) {
-        setFbStatus('ok', 'Firebase 연결됨');
-        fbReady = true;
-        document.getElementById('btn-create').disabled = false;
-        // 리스너는 최초 1회만 등록
-        if (!listenerAttached) {
-          listenerAttached = true;
-          startRoomsListener();
-        }
-      } else {
-        setFbStatus('spin', '재연결 중...');
-        fbReady = false;
-      }
-    });
-  } catch(e) {
-    setFbStatus('err', '초기화 실패');
-    console.error('Firebase 초기화 오류:', e);
-  }
-}
+let listenerAttached = false;
 
 function startLocal() {
   window.location.href = 'omokgay.html';
@@ -451,6 +413,7 @@ function initFirebase() {
   try {
     if (FIREBASE_CONFIG.apiKey.includes('여기에')) {
       setFbStatus('err', 'Firebase 미설정');
+      showRoomList([],[]);
       document.getElementById('btn-create').disabled = false;
       document.getElementById('my-nickname').textContent = '(Firebase 미설정)';
       return;
@@ -771,7 +734,6 @@ function switchTab(tab) {
     document.getElementById('screen-'+t).classList.toggle('active', t===tab);
   });
   document.getElementById('screen-waiting').classList.remove('active');
-  if (tab === 'online' && !db) initFirebase();
 }
 
 function showScreen(name) {
@@ -800,18 +762,16 @@ function setJoinMsg(msg, type='') {
 document.getElementById('join-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') joinByCode();
 });
-document.getElementById('room-name-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') createRoom();
-});
 
 /* ── 페이지 이탈 시 방 정리 ── */
 window.addEventListener('beforeunload', () => {
-  // myRoomCode가 있으면 아직 대기 중인 방 → 삭제
-  // 게임 시작 시 myRoomCode를 null로 초기화하므로 게임 중 방은 삭제 안 됨
   if (myRoomCode && fbReady) {
     roomsRef.child(myRoomCode).remove();
   }
 });
+
+/* ── 페이지 로드 즉시 Firebase + Auth 초기화 ── */
+initFirebase();
 </script>
 </body>
 </html>
